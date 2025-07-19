@@ -1,0 +1,32 @@
+name: InstantRec
+options:
+  bundleIdPrefix: com.instantrec
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "17.0"
+
+settings:
+  PRODUCT_NAME: InstantRec
+  SWIFT_VERSION: "5.0"
+  IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+
+targets:
+  InstantRec:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/instantrec
+        name: Sources
+        type: group
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.instantrec.app
+      DEVELOPMENT_TEAM: F8ZP855SM2
+      CODE_SIGN_STYLE: Automatic
+      INFOPLIST_FILE: Sources/instantrec/Info.plist
+      INFOPLIST_KEY_NSMicrophoneUsageDescription: "このアプリは音声録音のためにマイクロフォンアクセスが必要です。"
+      INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+      INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
+      INFOPLIST_KEY_UILaunchScreen_Generation: true
+      INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait"
+      INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+      INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
