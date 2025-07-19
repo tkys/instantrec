@@ -112,6 +112,7 @@ struct LazyRecordingInterface: View {
 
 struct RecordingView: View {
     @EnvironmentObject private var viewModel: RecordingViewModel
+    @State private var showingDiscardAlert = false
 
     var body: some View {
         NavigationStack {
@@ -165,6 +166,26 @@ struct RecordingView: View {
             }
             .navigationDestination(isPresented: $viewModel.navigateToList) {
                 RecordingsListView()
+            }
+            .toolbar {
+                // 録音中のみ一覧ボタンを表示
+                if viewModel.isRecording {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("一覧") {
+                            showingDiscardAlert = true
+                        }
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    }
+                }
+            }
+            .alert("録音を破棄しますか？", isPresented: $showingDiscardAlert) {
+                Button("キャンセル", role: .cancel) { }
+                Button("破棄して一覧へ", role: .destructive) {
+                    viewModel.discardRecordingAndNavigateToList()
+                }
+            } message: {
+                Text("現在の録音は保存されません。録音を破棄して一覧画面に移動しますか？")
             }
             .onAppear {
                 // リストから戻ってきた時の処理

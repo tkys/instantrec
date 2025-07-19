@@ -168,6 +168,36 @@ class RecordingViewModel: ObservableObject {
             }
         }
     }
+    
+    func discardRecordingAndNavigateToList() {
+        print("🗑️ Discarding current recording and navigating to list")
+        
+        // 録音を停止
+        audioService.stopRecording()
+        isRecording = false
+        timer?.invalidate()
+        
+        // 録音ファイルを削除
+        if let fileName = currentRecordingFileName {
+            let fileURL = audioService.getDocumentsDirectory().appendingPathComponent(fileName)
+            do {
+                if FileManager.default.fileExists(atPath: fileURL.path) {
+                    try FileManager.default.removeItem(at: fileURL)
+                    print("🗑️ Successfully deleted recording file: \(fileName)")
+                }
+            } catch {
+                print("⚠️ Failed to delete recording file: \(error.localizedDescription)")
+            }
+        }
+        
+        // 状態をリセット
+        currentRecordingFileName = nil
+        recordingStartTime = nil
+        elapsedTime = "00:00"
+        
+        // 一覧画面に移動
+        navigateToList = true
+    }
 
     private func updateElapsedTime() {
         guard let startTime = recordingStartTime else { return }
