@@ -10,10 +10,13 @@
 		1A2334610A65929113928BC8 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = C95D5D84F4E928224ABCDCAB /* Localizable.strings */; };
 		1D5B8EE9D05B24A444FC672F /* PlaybackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCAF415A289D03120D67E00F /* PlaybackView.swift */; };
 		2F244FE69E8B58DAFFEE2A96 /* ActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C708F2B339F986D3DD8233CD /* ActivityView.swift */; };
+		2F76EF9C37FB183F01228D40 /* DateFormatter+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EABB21CC51E6F6C199DDA76 /* DateFormatter+Extensions.swift */; };
 		43F01BB9730EDCB84A2EDF61 /* Recording.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC5DE46AF6C1BD647516F828 /* Recording.swift */; };
 		49994FF562AB1BF0AC401C26 /* RecordingsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B91117EF1C7A1D947B8D4B6 /* RecordingsListView.swift */; };
 		56DA2F6D0D3866565ED0E358 /* RecordingsListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084927FF052C81A4DED3908D /* RecordingsListViewModel.swift */; };
+		67811194A33B2CA2F96E01D9 /* RecordingRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 296E2F4E71057CC06CCF3D80 /* RecordingRowView.swift */; };
 		6CB550359DBE5B5CC54510FD /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E001EF19DE89379C5FEBB1 /* RecordingView.swift */; };
+		721109023ACF03DB28CE06F8 /* TimeInterval+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DFA5019F57D1BD39A57F2C7 /* TimeInterval+Extensions.swift */; };
 		7794600D00AD890BDA48DBF9 /* InstantRecordApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E53F7381FFBA02293162E7AA /* InstantRecordApp.swift */; };
 		842A65D49587C8CE9A738E22 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = BB9D8E16DC77F7BCF0CCF16C /* Localizable.strings */; };
 		980B01077BBBF9CBC846D73F /* RecordingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E5666614BE7A0F27C684F3 /* RecordingViewModel.swift */; };
@@ -24,9 +27,12 @@
 		084927FF052C81A4DED3908D /* RecordingsListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsListViewModel.swift; sourceTree = "<group>"; };
 		1F013D508BB9C60E72C95F81 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		254979AE1C5C66FE6464CE01 /* AudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService.swift; sourceTree = "<group>"; };
+		296E2F4E71057CC06CCF3D80 /* RecordingRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingRowView.swift; sourceTree = "<group>"; };
 		3B91117EF1C7A1D947B8D4B6 /* RecordingsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsListView.swift; sourceTree = "<group>"; };
+		3EABB21CC51E6F6C199DDA76 /* DateFormatter+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DateFormatter+Extensions.swift"; sourceTree = "<group>"; };
 		78E001EF19DE89379C5FEBB1 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
 		94D67409375080B9FFBC99F5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		9DFA5019F57D1BD39A57F2C7 /* TimeInterval+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TimeInterval+Extensions.swift"; sourceTree = "<group>"; };
 		B9E5666614BE7A0F27C684F3 /* RecordingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingViewModel.swift; sourceTree = "<group>"; };
 		BB9D8E16DC77F7BCF0CCF16C /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = Localizable.strings; sourceTree = "<group>"; };
 		C708F2B339F986D3DD8233CD /* ActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityView.swift; sourceTree = "<group>"; };
@@ -94,6 +100,7 @@
 				526C59D0ADCD9FB4C5A56EAD /* Models */,
 				3B26382A77F01FD7ECB74605 /* Resources */,
 				012AB28AFF5630E272795DB6 /* Services */,
+				F42DB736AF1322D7FB26F857 /* Utils */,
 				ED34280D594F8A00455598AA /* ViewModels */,
 				F9BD996D1401B08C129AED74 /* Views */,
 			);
@@ -118,11 +125,21 @@
 			path = ViewModels;
 			sourceTree = "<group>";
 		};
+		F42DB736AF1322D7FB26F857 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				3EABB21CC51E6F6C199DDA76 /* DateFormatter+Extensions.swift */,
+				9DFA5019F57D1BD39A57F2C7 /* TimeInterval+Extensions.swift */,
+			);
+			path = Utils;
+			sourceTree = "<group>";
+		};
 		F9BD996D1401B08C129AED74 /* Views */ = {
 			isa = PBXGroup;
 			children = (
 				C708F2B339F986D3DD8233CD /* ActivityView.swift */,
 				CCAF415A289D03120D67E00F /* PlaybackView.swift */,
+				296E2F4E71057CC06CCF3D80 /* RecordingRowView.swift */,
 				3B91117EF1C7A1D947B8D4B6 /* RecordingsListView.swift */,
 				78E001EF19DE89379C5FEBB1 /* RecordingView.swift */,
 			);
@@ -203,13 +220,16 @@
 			files = (
 				2F244FE69E8B58DAFFEE2A96 /* ActivityView.swift in Sources */,
 				C8DC144B631E9997C30A909E /* AudioService.swift in Sources */,
+				2F76EF9C37FB183F01228D40 /* DateFormatter+Extensions.swift in Sources */,
 				7794600D00AD890BDA48DBF9 /* InstantRecordApp.swift in Sources */,
 				1D5B8EE9D05B24A444FC672F /* PlaybackView.swift in Sources */,
 				43F01BB9730EDCB84A2EDF61 /* Recording.swift in Sources */,
+				67811194A33B2CA2F96E01D9 /* RecordingRowView.swift in Sources */,
 				6CB550359DBE5B5CC54510FD /* RecordingView.swift in Sources */,
 				980B01077BBBF9CBC846D73F /* RecordingViewModel.swift in Sources */,
 				49994FF562AB1BF0AC401C26 /* RecordingsListView.swift in Sources */,
 				56DA2F6D0D3866565ED0E358 /* RecordingsListViewModel.swift in Sources */,
+				721109023ACF03DB28CE06F8 /* TimeInterval+Extensions.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -9,12 +9,13 @@ class AudioService: ObservableObject {
     @Published var audioLevel: Float = 0.0
     
     init() {
-        setupAudioSession()
+        // 初期化時はAudioSession設定をスキップ（パフォーマンス最適化）
     }
     
-    private func setupAudioSession() {
+    private func setupAudioSessionOnDemand() {
         let session = AVAudioSession.sharedInstance()
         do {
+            // 録音・再生両対応
             try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
             try session.setActive(true)
         } catch {
@@ -23,13 +24,29 @@ class AudioService: ObservableObject {
     }
     
     func requestMicrophonePermission() async -> Bool {
-        return await withCheckedContinuation { continuation in
-            AVAudioSession.sharedInstance().requestRecordPermission { granted in
-                DispatchQueue.main.async {
-                    self.permissionGranted = granted
-                    continuation.resume(returning: granted)
+        // 既に権限が判明している場合は、非同期リクエストをスキップ
+        let currentStatus = AVAudioSession.sharedInstance().recordPermission
+        
+        switch currentStatus {
+        case .granted:
+            permissionGranted = true
+            return true
+        case .denied:
+            permissionGranted = false
+            return false
+        case .undetermined:
+            // 未決定の場合のみ非同期でリクエスト
+            return await withCheckedContinuation { continuation in
+                AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                    DispatchQueue.main.async {
+                        self.permissionGranted = granted
+                        continuation.resume(returning: granted)
+                    }
                 }
             }
+        @unknown default:
+            permissionGranted = false
+            return false
         }
     }
 
@@ -42,6 +59,7 @@ class AudioService: ObservableObject {
         let audioStartTime = CFAbsoluteTimeGetCurrent()
         
         do {
+            // 適切な品質設定（録音・再生可能）
             let settings = [
                 AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
                 AVSampleRateKey: 44100,
@@ -50,10 +68,13 @@ class AudioService: ObservableObject {
             ]
 
             let url = getDocumentsDirectory().appendingPathComponent(fileName)
+            
             audioRecorder = try AVAudioRecorder(url: url, settings: settings)
             audioRecorder?.isMeteringEnabled = true
             audioRecorder?.prepareToRecord()
             
+            // AudioSession設定と録音開始
+            setupAudioSessionOnDemand()
             let recordStarted = audioRecorder?.record() ?? false
             let audioSetupDuration = (CFAbsoluteTimeGetCurrent() - audioStartTime) * 1000
             

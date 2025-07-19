@@ -14,6 +14,7 @@ class RecordingViewModel: ObservableObject {
     private var recordingStartTime: Date?
     private var currentRecordingFileName: String?
     private var appLaunchTime: CFAbsoluteTime?
+    private var lastBackgroundTime: Date?
 
     enum PermissionStatus {
         case unknown, granted, denied
@@ -36,17 +37,30 @@ class RecordingViewModel: ObservableObject {
             print("🔐 Permission check started at: \(String(format: "%.1f", checkStartTime * 1000))ms")
         }
         
-        Task {
-            let granted = await audioService.requestMicrophonePermission()
-            await MainActor.run {
-                if let launchTime = appLaunchTime {
-                    let permissionGrantedTime = CFAbsoluteTimeGetCurrent() - launchTime
-                    print("✅ Permission granted at: \(String(format: "%.1f", permissionGrantedTime * 1000))ms")
-                }
-                
-                permissionStatus = granted ? .granted : .denied
-                if granted && !isRecording {
-                    startRecording()
+        // 権限チェックと録音開始を最優先実行
+        let currentStatus = AVAudioSession.sharedInstance().recordPermission
+        
+        if currentStatus == .granted {
+            // 🚀 即座に録音開始（権限が既に許可済み）
+            audioService.permissionGranted = true
+            startRecording()
+            
+            if let launchTime = appLaunchTime {
+                let permissionGrantedTime = CFAbsoluteTimeGetCurrent() - launchTime
+                print("✅ Permission granted at: \(String(format: "%.1f", permissionGrantedTime * 1000))ms")
+            }
+            permissionStatus = .granted
+        } else {
+            // 権限が未許可の場合のみ非同期で権限リクエスト
+            Task {
+                let granted = await audioService.requestMicrophonePermission()
+                await MainActor.run {
+                    if granted {
+                        startRecording()
+                        permissionStatus = .granted
+                    } else {
+                        permissionStatus = .denied
+                    }
                 }
             }
         }
@@ -61,22 +75,55 @@ class RecordingViewModel: ObservableObject {
             startRecording()
         }
     }
-
-    func startRecording() {
-        guard permissionStatus == .granted else {
-            print("Cannot start recording: permission not granted")
+    
+    func navigateToRecording() {
+        print("🔄 navigateToRecording called")
+        navigateToList = false
+        
+        // 新しい録音を開始
+        if permissionStatus == .granted && !isRecording {
+            startRecording()
+        }
+    }
+    
+    func handleAppDidEnterBackground() {
+        print("📱 App entered background")
+        lastBackgroundTime = Date()
+    }
+    
+    func handleAppWillEnterForeground() {
+        print("📱 App will enter foreground")
+        
+        guard let lastBackground = lastBackgroundTime else {
+            print("🔄 No background time recorded, normal foreground")
             return
         }
         
+        let backgroundDuration = Date().timeIntervalSince(lastBackground)
+        print("⏱️ Background duration: \(String(format: "%.1f", backgroundDuration))s")
+        
+        // 30秒以上バックグラウンドにいた場合は即座録音モードへ
+        if backgroundDuration > 30.0 {
+            print("🚀 Auto-returning to recording due to long background")
+            
+            // 一覧画面を閉じて録音画面に戻る
+            if navigateToList {
+                navigateToRecording()
+            }
+        }
+        
+        // バックグラウンド時間をリセット
+        lastBackgroundTime = nil
+    }
+
+    func startRecording() {
         let recordingStartCall = CFAbsoluteTimeGetCurrent()
         if let launchTime = appLaunchTime {
             let startCallTime = recordingStartCall - launchTime
             print("🎙️ Recording start called at: \(String(format: "%.1f", startCallTime * 1000))ms")
         }
-        
-        isRecording = true
-        recordingStartTime = Date()
 
+        // 🚀 即座にオーディオ録音開始（UI更新前）
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         let timestamp = formatter.string(from: Date())
@@ -90,9 +137,16 @@ class RecordingViewModel: ObservableObject {
                 print("📊 Total time from app tap to recording: \(String(format: "%.1f", actualRecordingStartTime * 1000))ms")
             }
             
-            timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-                self?.updateElapsedTime()
-                self?.audioService.updateAudioLevel()
+            // UI状態更新は録音開始後
+            recordingStartTime = Date()
+            isRecording = true
+            
+            // タイマーは遅延開始（UI負荷軽減）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self.timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                    self?.updateElapsedTime()
+                    self?.audioService.updateAudioLevel()
+                }
             }
         }
     }

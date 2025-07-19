@@ -118,6 +118,7 @@ struct PlaybackView: View {
                 .cornerRadius(25)
             }
         }
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: viewModel.setupPlayer)
         .onDisappear(perform: viewModel.stopPlayer)
         .sheet(isPresented: $showingShareSheet) {
