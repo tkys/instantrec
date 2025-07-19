@@ -73,8 +73,18 @@ class AudioService: ObservableObject {
         
         recorder.updateMeters()
         let averagePower = recorder.averagePower(forChannel: 0)
-        let normalizedLevel = pow(10.0, averagePower / 20.0)
-        audioLevel = max(0.0, min(1.0, normalizedLevel))
+        
+        // 無音閾値を設定（-55dB以下は無音とみなす）
+        let silenceThreshold: Float = -55.0
+        let minDecibels: Float = -45.0
+        
+        if averagePower < silenceThreshold {
+            audioLevel = 0.0
+        } else {
+            let normalizedLevel = max(0.0, (averagePower - minDecibels) / -minDecibels)
+            // 音声がある場合のみ平方根で反応を強化
+            audioLevel = sqrt(normalizedLevel)
+        }
     }
 
     func getDocumentsDirectory() -> URL {

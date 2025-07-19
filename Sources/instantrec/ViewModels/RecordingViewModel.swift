@@ -8,7 +8,7 @@ class RecordingViewModel: ObservableObject {
     @Published var navigateToList = false
     @Published var permissionStatus: PermissionStatus = .unknown
 
-    private var audioService = AudioService()
+    var audioService = AudioService()
     private var timer: Timer?
     private var modelContext: ModelContext?
     private var recordingStartTime: Date?
