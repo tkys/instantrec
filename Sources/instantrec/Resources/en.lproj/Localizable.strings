@@ -1,0 +1,22 @@
+/* 
+   Localizable.strings
+   InstantRec - English
+*/
+
+// Recording状態
+"preparing" = "Preparing...";
+"recording" = "Recording";
+"stop" = "Stop";
+"starting_recording" = "Starting recording...";
+"processing_audio" = "Processing audio...";
+
+// Permission関連
+"microphone_permission_message" = "Please allow microphone access";
+"open_settings" = "Open Settings";
+
+// List画面
+"recordings_title" = "Recordings";
+"duration_format" = "Duration: %.2fs";
+
+// Share機能
+"share" = "Share";

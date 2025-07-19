@@ -1,0 +1,22 @@
+/* 
+   Localizable.strings
+   InstantRec - 日本語 (デフォルト)
+*/
+
+// Recording状態
+"preparing" = "準備中...";
+"recording" = "録音中";
+"stop" = "停止";
+"starting_recording" = "録音を開始します...";
+"processing_audio" = "音声を認識中...";
+
+// Permission関連
+"microphone_permission_message" = "マイクへのアクセスを許可してください";
+"open_settings" = "設定を開く";
+
+// List画面
+"recordings_title" = "録音一覧";
+"duration_format" = "再生時間: %.2f秒";
+
+// Share機能
+"share" = "共有";

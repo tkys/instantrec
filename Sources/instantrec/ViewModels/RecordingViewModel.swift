@@ -13,20 +13,37 @@ class RecordingViewModel: ObservableObject {
     private var modelContext: ModelContext?
     private var recordingStartTime: Date?
     private var currentRecordingFileName: String?
+    private var appLaunchTime: CFAbsoluteTime?
 
     enum PermissionStatus {
         case unknown, granted, denied
     }
 
-    func setup(modelContext: ModelContext) {
+    func setup(modelContext: ModelContext, launchTime: CFAbsoluteTime) {
         self.modelContext = modelContext
+        self.appLaunchTime = launchTime
+        
+        let setupTime = CFAbsoluteTimeGetCurrent() - launchTime
+        print("⚙️ ViewModel setup completed at: \(String(format: "%.1f", setupTime * 1000))ms")
+        
         checkPermissions()
     }
     
     func checkPermissions() {
+        let permissionCheckStart = CFAbsoluteTimeGetCurrent()
+        if let launchTime = appLaunchTime {
+            let checkStartTime = permissionCheckStart - launchTime
+            print("🔐 Permission check started at: \(String(format: "%.1f", checkStartTime * 1000))ms")
+        }
+        
         Task {
             let granted = await audioService.requestMicrophonePermission()
             await MainActor.run {
+                if let launchTime = appLaunchTime {
+                    let permissionGrantedTime = CFAbsoluteTimeGetCurrent() - launchTime
+                    print("✅ Permission granted at: \(String(format: "%.1f", permissionGrantedTime * 1000))ms")
+                }
+                
                 permissionStatus = granted ? .granted : .denied
                 if granted && !isRecording {
                     startRecording()
@@ -51,6 +68,12 @@ class RecordingViewModel: ObservableObject {
             return
         }
         
+        let recordingStartCall = CFAbsoluteTimeGetCurrent()
+        if let launchTime = appLaunchTime {
+            let startCallTime = recordingStartCall - launchTime
+            print("🎙️ Recording start called at: \(String(format: "%.1f", startCallTime * 1000))ms")
+        }
+        
         isRecording = true
         recordingStartTime = Date()
 
@@ -61,6 +84,12 @@ class RecordingViewModel: ObservableObject {
         currentRecordingFileName = fileName
 
         if audioService.startRecording(fileName: fileName) != nil {
+            if let launchTime = appLaunchTime {
+                let actualRecordingStartTime = CFAbsoluteTimeGetCurrent() - launchTime
+                print("🟢 ACTUAL RECORDING STARTED at: \(String(format: "%.1f", actualRecordingStartTime * 1000))ms")
+                print("📊 Total time from app tap to recording: \(String(format: "%.1f", actualRecordingStartTime * 1000))ms")
+            }
+            
             timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
                 self?.updateElapsedTime()
                 self?.audioService.updateAudioLevel()

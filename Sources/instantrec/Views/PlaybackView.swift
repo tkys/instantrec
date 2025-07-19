@@ -1,6 +1,7 @@
 
 import SwiftUI
 import AVFoundation
+import UIKit
 
 class PlaybackViewModel: ObservableObject {
     @Published var isPlaying = false
@@ -74,13 +75,14 @@ class PlaybackViewModel: ObservableObject {
 
 struct PlaybackView: View {
     @StateObject private var viewModel: PlaybackViewModel
+    @State private var showingShareSheet = false
 
     init(recording: Recording) {
         _viewModel = StateObject(wrappedValue: PlaybackViewModel(recording: recording))
     }
 
     var body: some View {
-        VStack {
+        VStack(spacing: 30) {
             Text(viewModel.recording.fileName)
                 .font(.headline)
                 .padding()
@@ -99,8 +101,28 @@ struct PlaybackView: View {
                     .frame(width: 60, height: 60)
                     .foregroundColor(.accentColor)
             }
+            
+            // 大型シェアボタン
+            Button(action: {
+                showingShareSheet = true
+            }) {
+                HStack {
+                    Image(systemName: "square.and.arrow.up")
+                    Text("share")
+                }
+                .font(.title2)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+                .frame(width: 200, height: 50)
+                .background(Color.blue)
+                .cornerRadius(25)
+            }
         }
         .onAppear(perform: viewModel.setupPlayer)
         .onDisappear(perform: viewModel.stopPlayer)
+        .sheet(isPresented: $showingShareSheet) {
+            ActivityView(recording: viewModel.recording)
+        }
     }
 }
+

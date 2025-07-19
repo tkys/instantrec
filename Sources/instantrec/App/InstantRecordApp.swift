@@ -5,6 +5,9 @@ import SwiftData
 @main
 struct InstantRecApp: App {
     @StateObject private var recordingViewModel = RecordingViewModel()
+    
+    // アプリ起動時間を記録
+    private let appLaunchTime = CFAbsoluteTimeGetCurrent()
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -21,6 +24,7 @@ struct InstantRecApp: App {
 
     init() {
         _recordingViewModel = StateObject(wrappedValue: RecordingViewModel())
+        print("📱 App init completed at: \(CFAbsoluteTimeGetCurrent() - appLaunchTime)ms")
     }
 
     var body: some Scene {
@@ -29,8 +33,10 @@ struct InstantRecApp: App {
                 .environmentObject(recordingViewModel)
                 .environment(\.modelContext, sharedModelContainer.mainContext)
                 .onAppear {
-                    recordingViewModel.setup(modelContext: sharedModelContainer.mainContext)
-                    recordingViewModel.startRecording()
+                    let onAppearTime = CFAbsoluteTimeGetCurrent() - appLaunchTime
+                    print("🖥️ UI appeared at: \(String(format: "%.1f", onAppearTime * 1000))ms")
+                    
+                    recordingViewModel.setup(modelContext: sharedModelContainer.mainContext, launchTime: appLaunchTime)
                 }
         }
         .modelContainer(sharedModelContainer)

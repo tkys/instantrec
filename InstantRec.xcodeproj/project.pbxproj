@@ -7,23 +7,29 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1A2334610A65929113928BC8 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = C95D5D84F4E928224ABCDCAB /* Localizable.strings */; };
 		1D5B8EE9D05B24A444FC672F /* PlaybackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCAF415A289D03120D67E00F /* PlaybackView.swift */; };
+		2F244FE69E8B58DAFFEE2A96 /* ActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C708F2B339F986D3DD8233CD /* ActivityView.swift */; };
 		43F01BB9730EDCB84A2EDF61 /* Recording.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC5DE46AF6C1BD647516F828 /* Recording.swift */; };
 		49994FF562AB1BF0AC401C26 /* RecordingsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B91117EF1C7A1D947B8D4B6 /* RecordingsListView.swift */; };
 		56DA2F6D0D3866565ED0E358 /* RecordingsListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084927FF052C81A4DED3908D /* RecordingsListViewModel.swift */; };
 		6CB550359DBE5B5CC54510FD /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E001EF19DE89379C5FEBB1 /* RecordingView.swift */; };
 		7794600D00AD890BDA48DBF9 /* InstantRecordApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E53F7381FFBA02293162E7AA /* InstantRecordApp.swift */; };
+		842A65D49587C8CE9A738E22 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = BB9D8E16DC77F7BCF0CCF16C /* Localizable.strings */; };
 		980B01077BBBF9CBC846D73F /* RecordingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E5666614BE7A0F27C684F3 /* RecordingViewModel.swift */; };
 		C8DC144B631E9997C30A909E /* AudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254979AE1C5C66FE6464CE01 /* AudioService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		084927FF052C81A4DED3908D /* RecordingsListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsListViewModel.swift; sourceTree = "<group>"; };
+		1F013D508BB9C60E72C95F81 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		254979AE1C5C66FE6464CE01 /* AudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService.swift; sourceTree = "<group>"; };
 		3B91117EF1C7A1D947B8D4B6 /* RecordingsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsListView.swift; sourceTree = "<group>"; };
 		78E001EF19DE89379C5FEBB1 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
 		94D67409375080B9FFBC99F5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B9E5666614BE7A0F27C684F3 /* RecordingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingViewModel.swift; sourceTree = "<group>"; };
+		BB9D8E16DC77F7BCF0CCF16C /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = Localizable.strings; sourceTree = "<group>"; };
+		C708F2B339F986D3DD8233CD /* ActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityView.swift; sourceTree = "<group>"; };
 		CCAF415A289D03120D67E00F /* PlaybackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackView.swift; sourceTree = "<group>"; };
 		D22BE5D0A61E8839C5E26F0A /* InstantRec.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = InstantRec.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DC5DE46AF6C1BD647516F828 /* Recording.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recording.swift; sourceTree = "<group>"; };
@@ -55,6 +61,15 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		3B26382A77F01FD7ECB74605 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				BB9D8E16DC77F7BCF0CCF16C /* Localizable.strings */,
+				C95D5D84F4E928224ABCDCAB /* Localizable.strings */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		526C59D0ADCD9FB4C5A56EAD /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -77,6 +92,7 @@
 				94D67409375080B9FFBC99F5 /* Info.plist */,
 				3447CBA9D9743933812D9836 /* App */,
 				526C59D0ADCD9FB4C5A56EAD /* Models */,
+				3B26382A77F01FD7ECB74605 /* Resources */,
 				012AB28AFF5630E272795DB6 /* Services */,
 				ED34280D594F8A00455598AA /* ViewModels */,
 				F9BD996D1401B08C129AED74 /* Views */,
@@ -105,6 +121,7 @@
 		F9BD996D1401B08C129AED74 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				C708F2B339F986D3DD8233CD /* ActivityView.swift */,
 				CCAF415A289D03120D67E00F /* PlaybackView.swift */,
 				3B91117EF1C7A1D947B8D4B6 /* RecordingsListView.swift */,
 				78E001EF19DE89379C5FEBB1 /* RecordingView.swift */,
@@ -120,6 +137,7 @@
 			buildConfigurationList = BC2E7186A3AF22779950AA69 /* Build configuration list for PBXNativeTarget "InstantRec" */;
 			buildPhases = (
 				D813C7C2829FC4FEEBC1702A /* Sources */,
+				91F71D312ECC98686D34B529 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -166,11 +184,24 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		91F71D312ECC98686D34B529 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				842A65D49587C8CE9A738E22 /* Localizable.strings in Resources */,
+				1A2334610A65929113928BC8 /* Localizable.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		D813C7C2829FC4FEEBC1702A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2F244FE69E8B58DAFFEE2A96 /* ActivityView.swift in Sources */,
 				C8DC144B631E9997C30A909E /* AudioService.swift in Sources */,
 				7794600D00AD890BDA48DBF9 /* InstantRecordApp.swift in Sources */,
 				1D5B8EE9D05B24A444FC672F /* PlaybackView.swift in Sources */,
@@ -183,6 +214,17 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		C95D5D84F4E928224ABCDCAB /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				1F013D508BB9C60E72C95F81 /* en */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		1CBD7A9CC4448A766470A09E /* Debug */ = {

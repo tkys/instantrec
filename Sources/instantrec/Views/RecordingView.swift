@@ -15,7 +15,7 @@ struct RecordingView: View {
                             ProgressView()
                                 .scaleEffect(2)
                                 .progressViewStyle(CircularProgressViewStyle(tint: Color(UIColor.label)))
-                            Text("準備中...")
+                            Text("preparing")
                                 .foregroundColor(Color(UIColor.label))
                                 .font(.title2)
                                 .padding(.top)
@@ -26,11 +26,11 @@ struct RecordingView: View {
                             Image(systemName: "mic.slash.fill")
                                 .font(.system(size: 60))
                                 .foregroundColor(.red)
-                            Text("マイクへのアクセスを許可してください")
+                            Text("microphone_permission_message")
                                 .foregroundColor(Color(UIColor.label))
                                 .font(.title2)
                                 .multilineTextAlignment(.center)
-                            Button("設定を開く") {
+                            Button("open_settings") {
                                 if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
                                     UIApplication.shared.open(settingsUrl)
                                 }
@@ -53,7 +53,7 @@ struct RecordingView: View {
                                             .scaleEffect(1.0)
                                             .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: viewModel.isRecording)
                                         
-                                        Text("録音中")
+                                        Text("recording")
                                             .foregroundColor(.red)
                                             .font(.title2)
                                             .fontWeight(.bold)
@@ -81,7 +81,7 @@ struct RecordingView: View {
                                         }
                                     }
                                     
-                                    Text("音声を認識中...")
+                                    Text("processing_audio")
                                         .foregroundColor(Color(UIColor.secondaryLabel))
                                         .font(.subheadline)
                                 }
@@ -96,7 +96,7 @@ struct RecordingView: View {
                                 }) {
                                     HStack {
                                         Image(systemName: "stop.fill")
-                                        Text("停止")
+                                        Text("stop")
                                     }
                                     .font(.title)
                                     .fontWeight(.semibold)
@@ -109,7 +109,7 @@ struct RecordingView: View {
                             }
                         } else {
                             VStack {
-                                Text("録音を開始します...")
+                                Text("starting_recording")
                                     .foregroundColor(Color(UIColor.label))
                                     .font(.title2)
                                 ProgressView()

@@ -1,25 +1,48 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct RecordingsListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Recording.createdAt, order: .reverse) private var recordings: [Recording]
+    @State private var recordingToShare: Recording?
 
     var body: some View {
         NavigationView {
             List {
                 ForEach(recordings) { recording in
-                    NavigationLink(destination: PlaybackView(recording: recording)) {
-                        VStack(alignment: .leading) {
-                            Text("\(recording.createdAt, formatter: itemFormatter)")
-                            Text("Duration: \(String(format: "%.2f", recording.duration))s")
+                    HStack {
+                        NavigationLink(destination: PlaybackView(recording: recording)) {
+                            VStack(alignment: .leading) {
+                                Text("\(recording.createdAt, formatter: itemFormatter)")
+                                Text(String(format: NSLocalizedString("duration_format", comment: ""), recording.duration))
+                            }
                         }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            print("🔘 Share button tapped for recording: \(recording.fileName)")
+                            recordingToShare = recording
+                            print("📋 recordingToShare set to: \(recordingToShare?.fileName ?? "nil")")
+                        }) {
+                            Image(systemName: "square.and.arrow.up")
+                                .foregroundColor(.blue)
+                                .font(.title2)
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                 }
                 .onDelete(perform: deleteItems)
             }
-            .navigationTitle("Recordings")
+            .navigationTitle("recordings_title")
+            .sheet(item: $recordingToShare) { recording in
+                ActivityView(recording: recording)
+                    .onAppear {
+                        print("🎯 RecordingsList: Presenting ActivityView for recording: \(recording.fileName)")
+                    }
+            }
         }
     }
 
@@ -39,3 +62,5 @@ private let itemFormatter: DateFormatter = {
     formatter.timeStyle = .medium
     return formatter
 }()
+
+

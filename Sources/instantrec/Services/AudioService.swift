@@ -39,6 +39,8 @@ class AudioService: ObservableObject {
             return nil
         }
         
+        let audioStartTime = CFAbsoluteTimeGetCurrent()
+        
         do {
             let settings = [
                 AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
@@ -51,7 +53,13 @@ class AudioService: ObservableObject {
             audioRecorder = try AVAudioRecorder(url: url, settings: settings)
             audioRecorder?.isMeteringEnabled = true
             audioRecorder?.prepareToRecord()
-            audioRecorder?.record()
+            
+            let recordStarted = audioRecorder?.record() ?? false
+            let audioSetupDuration = (CFAbsoluteTimeGetCurrent() - audioStartTime) * 1000
+            
+            print("🎵 Audio service setup duration: \(String(format: "%.1f", audioSetupDuration))ms")
+            print("🎯 Recording actually started: \(recordStarted)")
+            
             return url
         } catch {
             print("Failed to start recording: \(error.localizedDescription)")
@@ -60,8 +68,17 @@ class AudioService: ObservableObject {
     }
 
     func stopRecording() {
-        audioRecorder?.stop()
+        guard let recorder = audioRecorder else { return }
+        
+        print("🛑 Stopping recording...")
+        recorder.stop()
         audioLevel = 0.0
+        
+        // 録音が完全に停止し、ファイルが閉じられるまで待機
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            print("✅ Recording stopped and file completely closed")
+        }
+        
         audioRecorder = nil
     }
     

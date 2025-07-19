@@ -132,6 +132,39 @@ Sources/instantrec/
 - ✅ Light/Dark mode対応済み
 - ✅ メモリリーク確認済み
 
+#### パフォーマンス測定機能実装
+
+**デバッグ用起動時間計測機能を追加:**
+- アプリタップから録音開始まで8段階の詳細測定
+- CFAbsoluteTimeGetCurrent()による高精度計測
+- 実機・シミュレーター両対応のログ出力
+
+**測定ポイント:**
+```
+📱 App init → 🖥️ UI appear → ⚙️ ViewModel setup 
+→ 🔐 Permission check → ✅ Permission granted 
+→ 🎙️ Recording start call → 🎵 Audio setup 
+→ 🟢 ACTUAL RECORDING START → 📊 Total time
+```
+
+**デバッグ資料:** DEBUG_PERFORMANCE_MEASUREMENT.md
+
+## 今後の開発予定
+
+### 即座に実装可能な機能
+1. **ボタン機能拡張**
+   - 録音破棄機能（保存せずに停止）
+   - 一時停止・再開機能
+
+2. **パフォーマンス最適化**
+   - 起動時間の実測とボトルネック特定
+   - メモリ使用量最適化
+
+### 長期的な改善
+- バックグラウンド録音対応
+- 音声品質設定オプション
+- 録音ファイル圧縮機能
+
 ---
 **開発セッション終了時刻**: 2025-07-19  
-**次回作業**: GitHub更新・機能拡張仕様検討
+**次回作業**: パフォーマンス実測・機能拡張仕様検討

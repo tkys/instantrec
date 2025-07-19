@@ -3,7 +3,7 @@ import Foundation
 import SwiftData
 
 @Model
-final class Recording {
+final class Recording: Identifiable {
     @Attribute(.unique) var id: UUID
     var fileName: String
     var createdAt: Date
