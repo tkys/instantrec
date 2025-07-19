@@ -32,10 +32,22 @@ InstantRecは「起動即録音」をコンセプトとした革新的な録音�
 - [x] 🔄 **スムーズナビゲーション**
   - リストからの復帰時に即新録音開始
   - 権限チェックの重複回避
+  - バックグラウンド復帰時の自動録音開始
 - [x] 🎨 **アクセシブルUI**
   - Light/Dark mode自動対応
   - Dynamic Type対応（アクセシビリティ）
   - システムカラー採用
+- [x] 📤 **共有機能**
+  - iOS標準シェア機能（UIActivityViewController）
+  - AirDrop、メール、クラウドサービス対応
+  - セキュアなファイル共有（NSItemProvider）
+- [x] ⭐ **お気に入り機能**
+  - 重要な録音にスター表示
+  - ワンタップでお気に入り切り替え
+- [x] 🕐 **スマート時間表示**
+  - 相対時間表示（3分前、昨日、一昨日）
+  - 絶対時間表示（7/19、2025/1/1）
+  - 状況に応じた自動切り替え
 
 ## 🏗️ 技術スタック
 
@@ -57,7 +69,7 @@ InstantRec/
 │   ├── App/
 │   │   └── InstantRecApp.swift    # アプリエントリーポイント
 │   ├── Models/
-│   │   └── Recording.swift        # SwiftDataモデル
+│   │   └── Recording.swift        # SwiftDataモデル（お気に入り機能付き）
 │   ├── Services/
 │   │   └── AudioService.swift     # 音声処理サービス
 │   ├── ViewModels/
@@ -66,7 +78,11 @@ InstantRec/
 │   ├── Views/
 │   │   ├── RecordingView.swift    # メイン録音画面
 │   │   ├── RecordingsListView.swift
-│   │   └── PlaybackView.swift
+│   │   ├── PlaybackView.swift
+│   │   ├── RecordingRowView.swift # 録音リスト行コンポーネント
+│   │   └── ActivityView.swift     # 共有機能コンポーネント
+│   ├── Utils/
+│   │   └── DateFormatter+Extensions.swift # スマート時間表示
 │   └── Info.plist                 # アプリ設定
 ├── docs/                          # ドキュメント
 │   ├── project-concept.md         # プロジェクトコンセプト
@@ -179,7 +195,11 @@ MIT License
 - ✅ **リアルタイム音声レベル表示**: ダミーアニメーションから実音声連動へ
 - ✅ **音声感度最適化**: 段階的調整により最適なレスポンスを実現
 - ✅ **アクセシビリティ対応**: システム設定に自動追従
-- ✅ **詳細な進捗記録**: PROJECT_PROGRESS.md で開発履歴を文書化
+- ✅ **共有機能追加**: iOS標準シェア機能でAirDrop・クラウド対応
+- ✅ **スマート時間表示**: 相対時間（3分前・昨日）と絶対時間の自動切り替え
+- ✅ **お気に入り機能**: 重要な録音にスター表示・操作
+- ✅ **UI大幅改善**: 階層的情報表示と録音品質向上
+- ✅ **パフォーマンス最適化**: 起動速度とUI応答性の大幅改善
 
 ---
 
