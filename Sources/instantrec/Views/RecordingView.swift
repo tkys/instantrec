@@ -172,11 +172,20 @@ struct RecordingView: View {
                 if viewModel.isRecording {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("一覧") {
+                            print("📋 一覧ボタンがタップされました")
                             showingDiscardAlert = true
                         }
                         .font(.headline)
                         .fontWeight(.semibold)
                     }
+                }
+            }
+            .onChange(of: viewModel.isRecording) { oldValue, newValue in
+                print("🎙️ Recording status changed: \(oldValue) → \(newValue)")
+                if newValue {
+                    print("✅ 録音開始 - 一覧ボタンが表示されるはずです")
+                } else {
+                    print("⏹️ 録音停止 - 一覧ボタンが非表示になります")
                 }
             }
             .alert("録音を破棄しますか？", isPresented: $showingDiscardAlert) {
@@ -188,8 +197,11 @@ struct RecordingView: View {
                 Text("現在の録音は保存されません。録音を破棄して一覧画面に移動しますか？")
             }
             .onAppear {
+                print("🎬 RecordingView onAppear - permission: \(viewModel.permissionStatus), isRecording: \(viewModel.isRecording), navigateToList: \(viewModel.navigateToList)")
+                
                 // リストから戻ってきた時の処理
                 if viewModel.permissionStatus == .granted && !viewModel.isRecording && viewModel.navigateToList == false {
+                    print("🔄 Calling returnFromList() in RecordingView onAppear")
                     viewModel.returnFromList()
                 }
             }

@@ -15,8 +15,10 @@ struct RecordingsListView: View {
             VStack(spacing: 0) {
                 // クイック録音ボタン
                 Button(action: {
-                    print("🚀 Quick recording button tapped")
+                    print("🚀 Quick recording button tapped in RecordingsListView")
+                    print("📱 Current recording status: \(recordingViewModel.isRecording)")
                     recordingViewModel.navigateToRecording()
+                    print("✅ Called navigateToRecording(), now dismissing...")
                     dismiss()
                 }) {
                     HStack {

@@ -5,9 +5,21 @@ struct RecordingRowView: View {
     let recording: Recording
     @Binding var recordingToShare: Recording?
     @Environment(\.modelContext) private var modelContext
+    @StateObject private var playbackManager = PlaybackManager.shared
     
     var body: some View {
         HStack(spacing: 12) {
+            // 再生ボタン
+            Button(action: {
+                print("🎵 Play button tapped for: \(recording.fileName)")
+                playbackManager.play(recording: recording)
+            }) {
+                Image(systemName: playbackManager.isPlayingRecording(recording) ? "pause.circle.fill" : "play.circle.fill")
+                    .foregroundColor(playbackManager.isPlayingRecording(recording) ? .red : .blue)
+                    .font(.system(size: 24, weight: .medium))
+            }
+            .buttonStyle(PlainButtonStyle())
+            
             // お気に入りマーク
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -33,15 +45,28 @@ struct RecordingRowView: View {
                         Spacer()
                         
                         // 再生時間（右寄せ）
-                        Text(recording.duration.formattedDuration())
-                            .font(.system(size: 14, weight: .regular, design: .monospaced))
-                            .foregroundColor(.secondary)
+                        if playbackManager.currentPlayingRecording?.id == recording.id {
+                            Text("\(playbackManager.currentPlaybackTime) / \(playbackManager.totalPlaybackTime)")
+                                .font(.system(size: 14, weight: .regular, design: .monospaced))
+                                .foregroundColor(.blue)
+                        } else {
+                            Text(recording.duration.formattedDuration())
+                                .font(.system(size: 14, weight: .regular, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
                     }
                     
-                    // 絶対時間（小さく）
-                    Text(recording.createdAt.absoluteTimeString())
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundColor(.secondary)
+                    // 再生中の場合はプログレスバー、そうでなければ絶対時間
+                    if playbackManager.currentPlayingRecording?.id == recording.id {
+                        ProgressView(value: playbackManager.playbackProgress)
+                            .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                            .frame(height: 2)
+                    } else {
+                        // 絶対時間（小さく）
+                        Text(recording.createdAt.absoluteTimeString())
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             

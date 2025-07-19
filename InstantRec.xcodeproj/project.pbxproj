@@ -19,11 +19,13 @@
 		721109023ACF03DB28CE06F8 /* TimeInterval+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DFA5019F57D1BD39A57F2C7 /* TimeInterval+Extensions.swift */; };
 		7794600D00AD890BDA48DBF9 /* InstantRecordApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E53F7381FFBA02293162E7AA /* InstantRecordApp.swift */; };
 		842A65D49587C8CE9A738E22 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = BB9D8E16DC77F7BCF0CCF16C /* Localizable.strings */; };
+		89CB27433334E4716A13CA16 /* PlaybackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0146FAC45909519B082975EB /* PlaybackManager.swift */; };
 		980B01077BBBF9CBC846D73F /* RecordingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E5666614BE7A0F27C684F3 /* RecordingViewModel.swift */; };
 		C8DC144B631E9997C30A909E /* AudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254979AE1C5C66FE6464CE01 /* AudioService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0146FAC45909519B082975EB /* PlaybackManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackManager.swift; sourceTree = "<group>"; };
 		084927FF052C81A4DED3908D /* RecordingsListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsListViewModel.swift; sourceTree = "<group>"; };
 		1F013D508BB9C60E72C95F81 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		254979AE1C5C66FE6464CE01 /* AudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService.swift; sourceTree = "<group>"; };
@@ -47,6 +49,7 @@
 			isa = PBXGroup;
 			children = (
 				254979AE1C5C66FE6464CE01 /* AudioService.swift */,
+				0146FAC45909519B082975EB /* PlaybackManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -222,6 +225,7 @@
 				C8DC144B631E9997C30A909E /* AudioService.swift in Sources */,
 				2F76EF9C37FB183F01228D40 /* DateFormatter+Extensions.swift in Sources */,
 				7794600D00AD890BDA48DBF9 /* InstantRecordApp.swift in Sources */,
+				89CB27433334E4716A13CA16 /* PlaybackManager.swift in Sources */,
 				1D5B8EE9D05B24A444FC672F /* PlaybackView.swift in Sources */,
 				43F01BB9730EDCB84A2EDF61 /* Recording.swift in Sources */,
 				67811194A33B2CA2F96E01D9 /* RecordingRowView.swift in Sources */,
