@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LazyAudioLevelMeter: View {
     let audioLevel: Float
+    let isManualStart: Bool
     @State private var isLoaded = false
     
     var body: some View {
@@ -27,10 +28,17 @@ struct LazyAudioLevelMeter: View {
             }
         }
         .onAppear {
-            // 録音開始後に遅延でロード
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            if isManualStart {
+                // 手動開始（含カウントダウン）の場合は即座に表示
                 withAnimation(.easeInOut(duration: 0.3)) {
                     isLoaded = true
+                }
+            } else {
+                // 即座録音の場合は遅延でロード
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        isLoaded = true
+                    }
                 }
             }
         }
@@ -42,6 +50,7 @@ struct LazyRecordingInterface: View {
     let elapsedTime: String
     let audioLevel: Float
     let stopAction: () -> Void
+    let isManualStart: Bool
     
     @State private var showFullInterface = false
     
@@ -68,7 +77,7 @@ struct LazyRecordingInterface: View {
                         .font(.system(size: 60))
                         .foregroundColor(.red)
                     
-                    LazyAudioLevelMeter(audioLevel: audioLevel)
+                    LazyAudioLevelMeter(audioLevel: audioLevel, isManualStart: isManualStart)
                     
                     Text("processing_audio")
                         .foregroundColor(Color(UIColor.secondaryLabel))
@@ -100,10 +109,15 @@ struct LazyRecordingInterface: View {
             }
         }
         .onAppear {
-            // 録音開始直後は最小限表示、その後フルインターフェース
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    showFullInterface = true
+            if isManualStart {
+                // 手動開始の場合は即座にフルインターフェース表示
+                showFullInterface = true
+            } else {
+                // 即座録音の場合は遅延でフルインターフェース表示
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        showFullInterface = true
+                    }
                 }
             }
         }
@@ -112,7 +126,9 @@ struct LazyRecordingInterface: View {
 
 struct RecordingView: View {
     @EnvironmentObject private var viewModel: RecordingViewModel
+    @StateObject private var recordingSettings = RecordingSettings.shared
     @State private var showingDiscardAlert = false
+    @State private var showingSettings = false
 
     var body: some View {
         NavigationStack {
@@ -150,8 +166,58 @@ struct RecordingView: View {
                                 isRecording: viewModel.isRecording,
                                 elapsedTime: viewModel.elapsedTime,
                                 audioLevel: viewModel.audioService.audioLevel,
-                                stopAction: { viewModel.stopRecording() }
+                                stopAction: { viewModel.stopRecording() },
+                                isManualStart: (viewModel.showManualRecordButton == false && recordingSettings.recordingStartMode == .manual) || 
+                                              (recordingSettings.recordingStartMode == .countdown)
                             )
+                        } else if viewModel.showManualRecordButton {
+                            // 手動録音待機画面（録音開始前）
+                            VStack(spacing: 30) {
+                                // 上部の待機状態表示
+                                VStack(spacing: 8) {
+                                    HStack {
+                                        Circle()
+                                            .fill(Color.gray)
+                                            .frame(width: 12, height: 12)
+                                            .opacity(0.8)
+                                        
+                                        Text("準備完了")
+                                            .foregroundColor(Color(UIColor.label))
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                    }
+                                }
+                                
+                                // 中央のマイクアイコン
+                                VStack(spacing: 15) {
+                                    Image(systemName: "mic")
+                                        .font(.system(size: 60))
+                                        .foregroundColor(.gray)
+                                    
+                                    Text("録音開始の準備ができました")
+                                        .foregroundColor(Color(UIColor.secondaryLabel))
+                                        .font(.subheadline)
+                                }
+                                
+                                // 待機時間表示
+                                Text("--:--")
+                                    .font(.system(.largeTitle, design: .monospaced, weight: .light))
+                                    .foregroundColor(Color(UIColor.secondaryLabel))
+                                
+                                // 開始ボタン
+                                Button(action: { viewModel.startManualRecording() }) {
+                                    HStack {
+                                        Image(systemName: "record.circle.fill")
+                                        Text("start")
+                                    }
+                                    .font(.title)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                    .frame(width: 200, height: 80)
+                                    .background(Color.red)
+                                    .cornerRadius(40)
+                                }
+                            }
                         } else {
                             VStack {
                                 Text("starting_recording")
@@ -163,20 +229,51 @@ struct RecordingView: View {
                         }
                     }
                 }
+                
+                // カウントダウンオーバーレイ
+                if viewModel.showingCountdown {
+                    CountdownView(
+                        duration: recordingSettings.countdownDuration,
+                        onCountdownComplete: {
+                            viewModel.onCountdownComplete()
+                        },
+                        onCancel: {
+                            viewModel.onCountdownCancel()
+                        }
+                    )
+                }
             }
             .navigationDestination(isPresented: $viewModel.navigateToList) {
                 RecordingsListView()
             }
             .toolbar {
-                // 録音中のみ一覧ボタンを表示
-                if viewModel.isRecording {
-                    ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if viewModel.isRecording || viewModel.showingCountdown {
+                        // 録音中またはカウントダウン中は一覧ボタンを表示
                         Button("一覧") {
                             print("📋 一覧ボタンがタップされました")
-                            showingDiscardAlert = true
+                            if viewModel.showingCountdown {
+                                // カウントダウン中の場合は直接一覧画面に移動
+                                viewModel.onCountdownCancel()
+                                viewModel.navigateToList = true
+                            } else {
+                                // 録音中の場合は破棄確認ダイアログを表示
+                                showingDiscardAlert = true
+                            }
                         }
                         .font(.headline)
                         .fontWeight(.semibold)
+                    } else if viewModel.showManualRecordButton {
+                        // 手動録音待機時は設定ボタンを表示
+                        Button(action: {
+                            showingSettings = true
+                        }) {
+                            Image(systemName: "gearshape.fill")
+                                .font(.title3)
+                        }
+                    } else {
+                        // その他の状態では何も表示しない
+                        EmptyView()
                     }
                 }
             }
@@ -195,6 +292,17 @@ struct RecordingView: View {
                 }
             } message: {
                 Text("現在の録音は保存されません。録音を破棄して一覧画面に移動しますか？")
+            }
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
+            }
+            .onChange(of: recordingSettings.recordingStartMode) { oldValue, newValue in
+                print("🔧 Recording mode changed from \(oldValue.displayName) to \(newValue.displayName)")
+                viewModel.updateUIForSettingsChange()
+            }
+            .onChange(of: recordingSettings.countdownDuration) { oldValue, newValue in
+                print("🔧 Countdown duration changed from \(oldValue.displayName) to \(newValue.displayName)")
+                // カウントダウン中の場合は何もしない
             }
             .onAppear {
                 print("🎬 RecordingView onAppear - permission: \(viewModel.permissionStatus), isRecording: \(viewModel.isRecording), navigateToList: \(viewModel.navigateToList)")

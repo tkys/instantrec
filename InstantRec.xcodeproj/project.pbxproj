@@ -9,11 +9,14 @@
 /* Begin PBXBuildFile section */
 		1A2334610A65929113928BC8 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = C95D5D84F4E928224ABCDCAB /* Localizable.strings */; };
 		1D5B8EE9D05B24A444FC672F /* PlaybackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCAF415A289D03120D67E00F /* PlaybackView.swift */; };
+		270CC6EBFB4D47A049EB74BD /* CountdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E2D8FA6FA79B8B3C4A1FD0C /* CountdownView.swift */; };
 		2F244FE69E8B58DAFFEE2A96 /* ActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C708F2B339F986D3DD8233CD /* ActivityView.swift */; };
 		2F76EF9C37FB183F01228D40 /* DateFormatter+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EABB21CC51E6F6C199DDA76 /* DateFormatter+Extensions.swift */; };
+		357E979687EEB35EE24EA651 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2DEC80762BD3A6301A54E9 /* SettingsView.swift */; };
 		43F01BB9730EDCB84A2EDF61 /* Recording.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC5DE46AF6C1BD647516F828 /* Recording.swift */; };
 		49994FF562AB1BF0AC401C26 /* RecordingsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B91117EF1C7A1D947B8D4B6 /* RecordingsListView.swift */; };
 		56DA2F6D0D3866565ED0E358 /* RecordingsListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084927FF052C81A4DED3908D /* RecordingsListViewModel.swift */; };
+		6240167FC1671B6E25FE008A /* RecordingStartMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE4EC4F27CDE9FD6C9850B3 /* RecordingStartMode.swift */; };
 		67811194A33B2CA2F96E01D9 /* RecordingRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 296E2F4E71057CC06CCF3D80 /* RecordingRowView.swift */; };
 		6CB550359DBE5B5CC54510FD /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E001EF19DE89379C5FEBB1 /* RecordingView.swift */; };
 		721109023ACF03DB28CE06F8 /* TimeInterval+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DFA5019F57D1BD39A57F2C7 /* TimeInterval+Extensions.swift */; };
@@ -21,17 +24,22 @@
 		842A65D49587C8CE9A738E22 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = BB9D8E16DC77F7BCF0CCF16C /* Localizable.strings */; };
 		89CB27433334E4716A13CA16 /* PlaybackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0146FAC45909519B082975EB /* PlaybackManager.swift */; };
 		980B01077BBBF9CBC846D73F /* RecordingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E5666614BE7A0F27C684F3 /* RecordingViewModel.swift */; };
+		B4043093D405EE6A1274E035 /* RecordingModeSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614F942BC6F3402EDA493E81 /* RecordingModeSelectionView.swift */; };
 		C8DC144B631E9997C30A909E /* AudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254979AE1C5C66FE6464CE01 /* AudioService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0146FAC45909519B082975EB /* PlaybackManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackManager.swift; sourceTree = "<group>"; };
 		084927FF052C81A4DED3908D /* RecordingsListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsListViewModel.swift; sourceTree = "<group>"; };
+		0DE4EC4F27CDE9FD6C9850B3 /* RecordingStartMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingStartMode.swift; sourceTree = "<group>"; };
 		1F013D508BB9C60E72C95F81 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		254979AE1C5C66FE6464CE01 /* AudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService.swift; sourceTree = "<group>"; };
 		296E2F4E71057CC06CCF3D80 /* RecordingRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingRowView.swift; sourceTree = "<group>"; };
 		3B91117EF1C7A1D947B8D4B6 /* RecordingsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsListView.swift; sourceTree = "<group>"; };
 		3EABB21CC51E6F6C199DDA76 /* DateFormatter+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DateFormatter+Extensions.swift"; sourceTree = "<group>"; };
+		4D2DEC80762BD3A6301A54E9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		4E2D8FA6FA79B8B3C4A1FD0C /* CountdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownView.swift; sourceTree = "<group>"; };
+		614F942BC6F3402EDA493E81 /* RecordingModeSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingModeSelectionView.swift; sourceTree = "<group>"; };
 		78E001EF19DE89379C5FEBB1 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
 		94D67409375080B9FFBC99F5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		9DFA5019F57D1BD39A57F2C7 /* TimeInterval+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TimeInterval+Extensions.swift"; sourceTree = "<group>"; };
@@ -83,6 +91,7 @@
 			isa = PBXGroup;
 			children = (
 				DC5DE46AF6C1BD647516F828 /* Recording.swift */,
+				0DE4EC4F27CDE9FD6C9850B3 /* RecordingStartMode.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -141,10 +150,13 @@
 			isa = PBXGroup;
 			children = (
 				C708F2B339F986D3DD8233CD /* ActivityView.swift */,
+				4E2D8FA6FA79B8B3C4A1FD0C /* CountdownView.swift */,
 				CCAF415A289D03120D67E00F /* PlaybackView.swift */,
+				614F942BC6F3402EDA493E81 /* RecordingModeSelectionView.swift */,
 				296E2F4E71057CC06CCF3D80 /* RecordingRowView.swift */,
 				3B91117EF1C7A1D947B8D4B6 /* RecordingsListView.swift */,
 				78E001EF19DE89379C5FEBB1 /* RecordingView.swift */,
+				4D2DEC80762BD3A6301A54E9 /* SettingsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -223,16 +235,20 @@
 			files = (
 				2F244FE69E8B58DAFFEE2A96 /* ActivityView.swift in Sources */,
 				C8DC144B631E9997C30A909E /* AudioService.swift in Sources */,
+				270CC6EBFB4D47A049EB74BD /* CountdownView.swift in Sources */,
 				2F76EF9C37FB183F01228D40 /* DateFormatter+Extensions.swift in Sources */,
 				7794600D00AD890BDA48DBF9 /* InstantRecordApp.swift in Sources */,
 				89CB27433334E4716A13CA16 /* PlaybackManager.swift in Sources */,
 				1D5B8EE9D05B24A444FC672F /* PlaybackView.swift in Sources */,
 				43F01BB9730EDCB84A2EDF61 /* Recording.swift in Sources */,
+				B4043093D405EE6A1274E035 /* RecordingModeSelectionView.swift in Sources */,
 				67811194A33B2CA2F96E01D9 /* RecordingRowView.swift in Sources */,
+				6240167FC1671B6E25FE008A /* RecordingStartMode.swift in Sources */,
 				6CB550359DBE5B5CC54510FD /* RecordingView.swift in Sources */,
 				980B01077BBBF9CBC846D73F /* RecordingViewModel.swift in Sources */,
 				49994FF562AB1BF0AC401C26 /* RecordingsListView.swift in Sources */,
 				56DA2F6D0D3866565ED0E358 /* RecordingsListViewModel.swift in Sources */,
+				357E979687EEB35EE24EA651 /* SettingsView.swift in Sources */,
 				721109023ACF03DB28CE06F8 /* TimeInterval+Extensions.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

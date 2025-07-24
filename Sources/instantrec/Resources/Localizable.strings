@@ -7,6 +7,7 @@
 "preparing" = "準備中...";
 "recording" = "録音中";
 "stop" = "停止";
+"start" = "録音開始";
 "starting_recording" = "録音を開始します...";
 "processing_audio" = "音声を認識中...";
 

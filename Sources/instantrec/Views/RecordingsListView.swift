@@ -9,6 +9,7 @@ struct RecordingsListView: View {
     @EnvironmentObject private var recordingViewModel: RecordingViewModel
     @Query(sort: \Recording.createdAt, order: .reverse) private var recordings: [Recording]
     @State private var recordingToShare: Recording?
+    @State private var showingSettings = false
 
     var body: some View {
         NavigationStack {
@@ -24,7 +25,7 @@ struct RecordingsListView: View {
                     HStack {
                         Image(systemName: "mic.circle.fill")
                             .font(.title2)
-                        Text("即座に録音開始")
+                        Text("録音開始")
                             .font(.headline)
                             .fontWeight(.semibold)
                     }
@@ -47,6 +48,19 @@ struct RecordingsListView: View {
             }
             .navigationTitle("recordings_title")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showingSettings = true
+                    }) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.title3)
+                    }
+                }
+            }
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
+            }
             .sheet(item: $recordingToShare) { recording in
                 ActivityView(recording: recording)
                     .onAppear {

@@ -1,12 +1,15 @@
 import Foundation
 import AVFoundation
 import SwiftData
+import SwiftUI
 
 class RecordingViewModel: ObservableObject {
     @Published var isRecording = false
     @Published var elapsedTime = "00:00"
     @Published var navigateToList = false
     @Published var permissionStatus: PermissionStatus = .unknown
+    @Published var showingCountdown = false
+    @Published var showManualRecordButton = false
 
     var audioService = AudioService()
     private var timer: Timer?
@@ -15,6 +18,7 @@ class RecordingViewModel: ObservableObject {
     private var currentRecordingFileName: String?
     private var appLaunchTime: CFAbsoluteTime?
     private var lastBackgroundTime: Date?
+    @ObservedObject private var recordingSettings = RecordingSettings.shared
 
     enum PermissionStatus {
         case unknown, granted, denied
@@ -37,27 +41,28 @@ class RecordingViewModel: ObservableObject {
             print("🔐 Permission check started at: \(String(format: "%.1f", checkStartTime * 1000))ms")
         }
         
-        // 権限チェックと録音開始を最優先実行
+        // 権限チェック
         let currentStatus = AVAudioSession.sharedInstance().recordPermission
         
         if currentStatus == .granted {
-            // 🚀 即座に録音開始（権限が既に許可済み）
             audioService.permissionGranted = true
-            startRecording()
+            permissionStatus = .granted
             
             if let launchTime = appLaunchTime {
                 let permissionGrantedTime = CFAbsoluteTimeGetCurrent() - launchTime
                 print("✅ Permission granted at: \(String(format: "%.1f", permissionGrantedTime * 1000))ms")
             }
-            permissionStatus = .granted
+            
+            // 録音開始方式に応じて処理を分岐
+            handleRecordingStart()
         } else {
             // 権限が未許可の場合のみ非同期で権限リクエスト
             Task {
                 let granted = await audioService.requestMicrophonePermission()
                 await MainActor.run {
                     if granted {
-                        startRecording()
                         permissionStatus = .granted
+                        handleRecordingStart()
                     } else {
                         permissionStatus = .denied
                     }
@@ -66,13 +71,33 @@ class RecordingViewModel: ObservableObject {
         }
     }
     
+    /// 録音開始方式に応じた処理
+    private func handleRecordingStart() {
+        switch recordingSettings.recordingStartMode {
+        case .instantStart:
+            if recordingSettings.isInstantRecordingEnabled() {
+                print("🚀 Instant recording start")
+                startRecording()
+            } else {
+                print("⚠️ Instant recording not consented, showing manual button")
+                showManualRecordButton = true
+            }
+        case .countdown:
+            print("⏰ Countdown mode start")
+            showingCountdown = true
+        case .manual:
+            print("🎙️ Manual mode start")
+            showManualRecordButton = true
+        }
+    }
+    
     func returnFromList() {
         // ナビゲーション状態をリセット
         navigateToList = false
         
-        // リストから戻ってきた時は新しい録音を開始
+        // リストから戻ってきた時は設定に応じた録音開始
         if permissionStatus == .granted && !isRecording {
-            startRecording()
+            handleRecordingStart()
         }
     }
     
@@ -80,9 +105,9 @@ class RecordingViewModel: ObservableObject {
         print("🔄 navigateToRecording called")
         navigateToList = false
         
-        // 新しい録音を開始
+        // 設定に応じた録音開始
         if permissionStatus == .granted && !isRecording {
-            startRecording()
+            handleRecordingStart()
         }
     }
     
@@ -141,8 +166,9 @@ class RecordingViewModel: ObservableObject {
             recordingStartTime = Date()
             isRecording = true
             
-            // タイマーは遅延開始（UI負荷軽減）
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            // 手動開始モードの場合は即座にタイマー開始、即座録音の場合は遅延開始（UI負荷軽減）
+            let timerDelay = (recordingSettings.recordingStartMode == .countdown || recordingSettings.recordingStartMode == .manual) ? 0.0 : 0.3
+            DispatchQueue.main.asyncAfter(deadline: .now() + timerDelay) {
                 self.timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
                     self?.updateElapsedTime()
                     self?.audioService.updateAudioLevel()
@@ -205,5 +231,43 @@ class RecordingViewModel: ObservableObject {
         let minutes = Int(elapsed) / 60
         let seconds = Int(elapsed) % 60
         elapsedTime = String(format: "%02d:%02d", minutes, seconds)
+    }
+    
+    /// カウントダウン完了時の処理
+    func onCountdownComplete() {
+        print("⏰ Countdown completed, starting recording")
+        // 即座に録音を開始してからカウントダウンを非表示にする（画面フリッカー防止）
+        startRecording()
+        showingCountdown = false
+    }
+    
+    /// カウントダウンキャンセル時の処理
+    func onCountdownCancel() {
+        print("❌ Countdown cancelled")
+        showingCountdown = false
+        showManualRecordButton = true
+    }
+    
+    /// 手動録音開始（手動モード・カウントダウンキャンセル時）
+    func startManualRecording() {
+        print("🎙️ Manual recording start")
+        // 即座に録音を開始してから手動ボタンを非表示にする（画面フリッカー防止）
+        startRecording()
+        showManualRecordButton = false
+    }
+    
+    /// 設定変更時の画面状態更新
+    func updateUIForSettingsChange() {
+        print("🔧 Settings changed, updating UI state")
+        
+        // 現在録音中でない場合のみ状態を更新
+        guard !isRecording && permissionStatus == .granted else { return }
+        
+        // 現在の表示状態をリセット
+        showingCountdown = false
+        showManualRecordButton = false
+        
+        // 新しい設定に基づいて状態を設定
+        handleRecordingStart()
     }
 }

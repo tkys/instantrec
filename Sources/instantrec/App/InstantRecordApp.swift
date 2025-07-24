@@ -5,7 +5,9 @@ import SwiftData
 @main
 struct InstantRecApp: App {
     @StateObject private var recordingViewModel = RecordingViewModel()
+    @StateObject private var recordingSettings = RecordingSettings.shared
     @Environment(\.scenePhase) private var scenePhase
+    @State private var showingModeSelection = false
     
     // アプリ起動時間を記録
     private let appLaunchTime = CFAbsoluteTimeGetCurrent()
@@ -49,18 +51,38 @@ struct InstantRecApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RecordingView()
-                .environmentObject(recordingViewModel)
-                .environment(\.modelContext, sharedModelContainer.mainContext)
-                .onAppear {
-                    let onAppearTime = CFAbsoluteTimeGetCurrent() - appLaunchTime
-                    print("🖥️ UI appeared at: \(String(format: "%.1f", onAppearTime * 1000))ms")
-                    
-                    // 🚀 即座にsetupを実行（非同期化で高速化）
-                    DispatchQueue.main.async {
-                        recordingViewModel.setup(modelContext: sharedModelContainer.mainContext, launchTime: appLaunchTime)
+            ZStack {
+                RecordingView()
+                    .environmentObject(recordingViewModel)
+                    .environment(\.modelContext, sharedModelContainer.mainContext)
+                    .onAppear {
+                        let onAppearTime = CFAbsoluteTimeGetCurrent() - appLaunchTime
+                        print("🖥️ UI appeared at: \(String(format: "%.1f", onAppearTime * 1000))ms")
+                        
+                        // 初回起動判定
+                        if recordingSettings.isFirstLaunch {
+                            print("👋 First launch detected, showing mode selection")
+                            showingModeSelection = true
+                        } else {
+                            print("🔄 Returning user, using saved settings: \(recordingSettings.recordingStartMode.displayName)")
+                            // 既存ユーザー向けの通常セットアップ
+                            DispatchQueue.main.async {
+                                recordingViewModel.setup(modelContext: sharedModelContainer.mainContext, launchTime: appLaunchTime)
+                            }
+                        }
                     }
+                
+                // 初回起動時の方式選択画面
+                if showingModeSelection {
+                    RecordingModeSelectionView(isPresented: $showingModeSelection)
+                        .onDisappear {
+                            // 方式選択完了後に通常セットアップを実行
+                            DispatchQueue.main.async {
+                                recordingViewModel.setup(modelContext: sharedModelContainer.mainContext, launchTime: appLaunchTime)
+                            }
+                        }
                 }
+            }
                 .onChange(of: scenePhase) { oldPhase, newPhase in
                     // パフォーマンス最適化: 初回起動時はスキップ
                     guard recordingViewModel.permissionStatus != .unknown else { return }
