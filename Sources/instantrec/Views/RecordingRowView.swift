@@ -72,6 +72,12 @@ struct RecordingRowView: View {
             
             Spacer()
             
+            // クラウド同期状態アイコン
+            Image(systemName: recording.cloudSyncStatus.iconName)
+                .foregroundColor(colorForSyncStatus(recording.cloudSyncStatus))
+                .font(.system(size: 16, weight: .medium))
+                .opacity(recording.cloudSyncStatus == CloudSyncStatus.notSynced ? 0.5 : 1.0)
+            
             // シェアボタン
             Button(action: {
                 print("🔘 Share button tapped for recording: \(recording.fileName)")
@@ -85,6 +91,22 @@ struct RecordingRowView: View {
             .buttonStyle(PlainButtonStyle())
         }
         .padding(.vertical, 4)
+    }
+    
+    /// 同期状態に応じた色を返す
+    private func colorForSyncStatus(_ status: CloudSyncStatus) -> Color {
+        switch status {
+        case .notSynced:
+            return .gray
+        case .pending:
+            return .orange
+        case .uploading:
+            return .blue
+        case .synced:
+            return .green
+        case .error:
+            return .red
+        }
     }
 }
 

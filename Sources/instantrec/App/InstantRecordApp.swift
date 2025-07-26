@@ -1,6 +1,7 @@
 
 import SwiftUI
 import SwiftData
+import GoogleSignIn
 
 @main
 struct InstantRecApp: App {
@@ -46,7 +47,26 @@ struct InstantRecApp: App {
 
     init() {
         _recordingViewModel = StateObject(wrappedValue: RecordingViewModel())
+        
+        // Google Sign-In設定
+        configureGoogleSignIn()
+        
         print("📱 App init completed at: \(CFAbsoluteTimeGetCurrent() - appLaunchTime)ms")
+    }
+    
+    /// Google Sign-In設定を初期化
+    private func configureGoogleSignIn() {
+        guard let path = Bundle.main.path(forResource: "GoogleSignInConfiguration", ofType: "plist"),
+              let plist = NSDictionary(contentsOfFile: path),
+              let clientId = plist["CLIENT_ID"] as? String else {
+            print("⚠️ Google Sign-In: Configuration file not found or invalid")
+            return
+        }
+        
+        let configuration = GIDConfiguration(clientID: clientId)
+        
+        GIDSignIn.sharedInstance.configuration = configuration
+        print("✅ Google Sign-In: Configuration completed")
     }
 
     var body: some Scene {
@@ -83,7 +103,11 @@ struct InstantRecApp: App {
                         }
                 }
             }
-                .onChange(of: scenePhase) { oldPhase, newPhase in
+            .onOpenURL { url in
+                // Google Sign-In URLスキーム処理
+                GIDSignIn.sharedInstance.handle(url)
+            }
+            .onChange(of: scenePhase) { oldPhase, newPhase in
                     // パフォーマンス最適化: 初回起動時はスキップ
                     guard recordingViewModel.permissionStatus != .unknown else { return }
                     

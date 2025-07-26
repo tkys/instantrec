@@ -2,9 +2,13 @@ import SwiftUI
 
 struct SettingsView: View {
     @StateObject private var settings = RecordingSettings.shared
+    @StateObject private var googleDriveService = GoogleDriveService.shared
+    @StateObject private var uploadQueue = UploadQueue.shared
     @Environment(\.dismiss) private var dismiss
     @State private var showingModeChangeAlert = false
     @State private var pendingMode: RecordingStartMode?
+    @State private var showingSignInAlert = false
+    @State private var showingSignOutAlert = false
     
     var body: some View {
         NavigationView {
@@ -58,6 +62,106 @@ struct SettingsView: View {
                             }
                         }
                         .pickerStyle(SegmentedPickerStyle())
+                    }
+                }
+                
+                // Google Drive連携設定
+                Section(header: Text("Google Drive連携")) {
+                    if googleDriveService.isAuthenticated {
+                        // サインイン済み状態
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("接続済み")
+                                    .foregroundColor(.primary)
+                                    .fontWeight(.medium)
+                                
+                                Text("録音ファイルが自動でGoogle Driveに保存されます")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                        }
+                        
+                        // アップロードキュー状況
+                        if uploadQueue.queueCount > 0 || uploadQueue.activeUploads > 0 {
+                            HStack {
+                                Image(systemName: "icloud.and.arrow.up")
+                                    .foregroundColor(.blue)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("アップロード状況")
+                                        .foregroundColor(.primary)
+                                        .fontWeight(.medium)
+                                    
+                                    if uploadQueue.activeUploads > 0 {
+                                        Text("アップロード中: \(uploadQueue.activeUploads)件")
+                                            .font(.caption)
+                                            .foregroundColor(.blue)
+                                    }
+                                    
+                                    if uploadQueue.queueCount > 0 {
+                                        Text("待機中: \(uploadQueue.queueCount)件")
+                                            .font(.caption)
+                                            .foregroundColor(.orange)
+                                    }
+                                }
+                                
+                                Spacer()
+                            }
+                        }
+                        
+                        // サインアウトボタン
+                        Button(action: {
+                            showingSignOutAlert = true
+                        }) {
+                            HStack {
+                                Image(systemName: "person.crop.circle.badge.minus")
+                                    .foregroundColor(.red)
+                                
+                                Text("サインアウト")
+                                    .foregroundColor(.red)
+                            }
+                        }
+                        
+                    } else {
+                        // 未サインイン状態
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: "icloud.slash")
+                                    .foregroundColor(.gray)
+                                
+                                Text("未接続")
+                                    .foregroundColor(.primary)
+                                    .fontWeight(.medium)
+                                
+                                Spacer()
+                            }
+                            
+                            Text("Google Driveに接続すると、録音ファイルが自動でクラウドに保存され、どのデバイスからでもアクセスできます。")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                        
+                        // サインインボタン
+                        Button(action: {
+                            showingSignInAlert = true
+                        }) {
+                            HStack {
+                                Image(systemName: "person.crop.circle.badge.plus")
+                                    .foregroundColor(.blue)
+                                
+                                Text("Google Driveに接続")
+                                    .foregroundColor(.blue)
+                                    .fontWeight(.medium)
+                                
+                                Spacer()
+                            }
+                        }
                     }
                 }
                 
@@ -121,6 +225,28 @@ struct SettingsView: View {
             }
         } message: {
             Text("即録音方式では、アプリを開くと同時に録音が開始されます。この動作に同意しますか？")
+        }
+        .alert("Google Driveに接続", isPresented: $showingSignInAlert) {
+            Button("キャンセル", role: .cancel) { }
+            Button("接続する") {
+                Task {
+                    do {
+                        try await googleDriveService.signIn()
+                    } catch {
+                        print("❌ Google Drive sign-in failed: \(error)")
+                    }
+                }
+            }
+        } message: {
+            Text("Google Driveに接続して、録音ファイルを自動でクラウドに保存しますか？")
+        }
+        .alert("Google Driveから切断", isPresented: $showingSignOutAlert) {
+            Button("キャンセル", role: .cancel) { }
+            Button("切断する", role: .destructive) {
+                googleDriveService.signOut()
+            }
+        } message: {
+            Text("Google Driveから切断しますか？既にアップロード済みのファイルはGoogle Drive上に残ります。")
         }
     }
 }

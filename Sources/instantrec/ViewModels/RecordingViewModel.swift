@@ -19,6 +19,7 @@ class RecordingViewModel: ObservableObject {
     private var appLaunchTime: CFAbsoluteTime?
     private var lastBackgroundTime: Date?
     @ObservedObject private var recordingSettings = RecordingSettings.shared
+    private let uploadQueue = UploadQueue.shared
 
     enum PermissionStatus {
         case unknown, granted, denied
@@ -27,6 +28,9 @@ class RecordingViewModel: ObservableObject {
     func setup(modelContext: ModelContext, launchTime: CFAbsoluteTime) {
         self.modelContext = modelContext
         self.appLaunchTime = launchTime
+        
+        // UploadQueueにモデルコンテキストを設定
+        uploadQueue.setModelContext(modelContext)
         
         let setupTime = CFAbsoluteTimeGetCurrent() - launchTime
         print("⚙️ ViewModel setup completed at: \(String(format: "%.1f", setupTime * 1000))ms")
@@ -188,6 +192,10 @@ class RecordingViewModel: ObservableObject {
             modelContext?.insert(newRecording)
             do {
                 try modelContext?.save()
+                
+                // Google Driveアップロードをキューに追加
+                uploadQueue.enqueue(recording: newRecording)
+                
                 navigateToList = true
             } catch {
                 print("Failed to save recording: \(error.localizedDescription)")
