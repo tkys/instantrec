@@ -34,6 +34,16 @@ class GoogleDriveService: ObservableObject {
         return GIDSignIn.sharedInstance.currentUser
     }
     
+    /// 現在のユーザーのメールアドレス
+    var currentUserEmail: String? {
+        return currentUser?.profile?.email
+    }
+    
+    /// 現在のユーザーの表示名
+    var currentUserName: String? {
+        return currentUser?.profile?.name
+    }
+    
     // MARK: - Singleton
     
     static let shared = GoogleDriveService()
@@ -63,7 +73,7 @@ class GoogleDriveService: ObservableObject {
     @MainActor
     private func restorePreviousSignIn() async {
         do {
-            let result = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GIDGoogleUser, Error>) in
+            let _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GIDGoogleUser, Error>) in
                 GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
                     if let error = error {
                         continuation.resume(throwing: error)
@@ -162,6 +172,9 @@ class GoogleDriveService: ObservableObject {
             throw GoogleDriveError.notAuthenticated
         }
         
+        // ファイル検証を最初に実行
+        try validateAudioFile(at: fileURL)
+        
         await MainActor.run {
             self.isUploading = true
             self.uploadProgress = 0.0
@@ -172,17 +185,19 @@ class GoogleDriveService: ObservableObject {
             // InstantRec専用フォルダを取得または作成
             let folderID = try await getOrCreateInstantRecFolder()
             
+            // ファイルサイズを確認
+            let fileSize = try getFileSize(at: fileURL)
+            print("📊 Google Drive: File size: \(fileSize) bytes")
+            
             // ファイルメタデータを作成
             let file = GTLRDrive_File()
             file.name = fileName
             file.parents = [folderID]
-            file.mimeType = "audio/mp4" // m4aファイル用
-            
-            // ファイルデータを読み込み
-            let fileData = try Data(contentsOf: fileURL)
+            file.mimeType = "audio/x-m4a" // m4aファイル用の正しいMIMEタイプ
             
             // アップロードパラメータを作成
-            let uploadParameters = GTLRUploadParameters(data: fileData, mimeType: "audio/mp4")
+            let fileData = try Data(contentsOf: fileURL)
+            let uploadParameters = GTLRUploadParameters(data: fileData, mimeType: "audio/x-m4a")
             uploadParameters.shouldUploadWithSingleRequest = true
             
             // アップロードクエリを作成
@@ -190,7 +205,7 @@ class GoogleDriveService: ObservableObject {
             
             // アップロード実行
             let result: String = try await withCheckedThrowingContinuation { continuation in
-                let ticket = driveService.executeQuery(query) { _, result, error in
+                let _ = driveService.executeQuery(query) { _, result, error in
                     if let error = error {
                         continuation.resume(throwing: error)
                     } else if let file = result as? GTLRDrive_File, let fileId = file.identifier {
@@ -209,7 +224,10 @@ class GoogleDriveService: ObservableObject {
                 self.uploadProgress = 1.0
             }
             
-            print("✅ Google Drive: Upload successful - File ID: \(result)")
+            // アップロード後の検証
+            try await verifyUploadedFile(fileID: result, originalSize: fileSize)
+            
+            print("✅ Google Drive: Upload successful and verified - File ID: \(result)")
             return result
             
         } catch {
@@ -289,6 +307,84 @@ class GoogleDriveService: ObservableObject {
         print("📁 Google Drive: Created new folder - ID: \(folderID)")
         return folderID
     }
+    
+    // MARK: - Helper Methods
+    
+    /// ファイルサイズを取得
+    private func getFileSize(at url: URL) throws -> UInt64 {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        return attributes[.size] as? UInt64 ?? 0
+    }
+    
+    /// ファイルの整合性チェック
+    private func validateAudioFile(at url: URL) throws {
+        // ファイル存在確認
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw GoogleDriveError.invalidFile("File does not exist")
+        }
+        
+        // ファイル拡張子確認
+        guard url.pathExtension.lowercased() == "m4a" else {
+            throw GoogleDriveError.invalidFile("Invalid file extension: \(url.pathExtension)")
+        }
+        
+        // ファイルサイズ確認（空ファイルではない）
+        let fileSize = try getFileSize(at: url)
+        guard fileSize > 0 else {
+            throw GoogleDriveError.invalidFile("File is empty")
+        }
+        
+        // 最大ファイルサイズ確認（100MB制限）
+        let maxSize: UInt64 = 100 * 1024 * 1024
+        guard fileSize <= maxSize else {
+            throw GoogleDriveError.invalidFile("File too large: \(fileSize) bytes (max: \(maxSize))")
+        }
+        
+        print("✅ Audio file validation passed: \(fileSize) bytes")
+    }
+    
+    /// アップロードされたファイルの検証
+    private func verifyUploadedFile(fileID: String, originalSize: UInt64) async throws {
+        let query = GTLRDriveQuery_FilesGet.query(withFileId: fileID)
+        query.fields = "id,name,size,mimeType,md5Checksum"
+        
+        let result: Any = try await withCheckedThrowingContinuation { continuation in
+            driveService.executeQuery(query) { _, result, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else if let result = result {
+                    continuation.resume(returning: result)
+                } else {
+                    continuation.resume(throwing: GoogleDriveError.uploadFailed)
+                }
+            }
+        }
+        
+        guard let file = result as? GTLRDrive_File else {
+            throw GoogleDriveError.uploadFailed
+        }
+        
+        // ファイルサイズの比較
+        if let uploadedSizeString = file.size?.stringValue,
+           let uploadedSize = UInt64(uploadedSizeString) {
+            guard uploadedSize == originalSize else {
+                print("❌ File size mismatch: uploaded \(uploadedSize), original \(originalSize)")
+                throw GoogleDriveError.invalidFile("File size mismatch after upload")
+            }
+            print("✅ File size verified: \(uploadedSize) bytes")
+        }
+        
+        // MIMEタイプの確認
+        if let mimeType = file.mimeType {
+            guard mimeType.contains("audio") else {
+                print("❌ Invalid MIME type: \(mimeType)")
+                throw GoogleDriveError.invalidFile("Invalid MIME type after upload")
+            }
+            print("✅ MIME type verified: \(mimeType)")
+        }
+        
+        print("🔍 Upload verification completed successfully")
+    }
 }
 
 // MARK: - Error Types
@@ -299,6 +395,7 @@ enum GoogleDriveError: LocalizedError {
     case authenticationFailed(Error)
     case uploadFailed
     case folderCreationFailed
+    case invalidFile(String)
     
     var errorDescription: String? {
         switch self {
@@ -312,6 +409,8 @@ enum GoogleDriveError: LocalizedError {
             return "ファイルのアップロードに失敗しました"
         case .folderCreationFailed:
             return "フォルダの作成に失敗しました"
+        case .invalidFile(let reason):
+            return "無効なファイルです: \(reason)"
         }
     }
 }

@@ -78,8 +78,21 @@ struct SettingsView: View {
                                     .foregroundColor(.primary)
                                     .fontWeight(.medium)
                                 
+                                if let email = googleDriveService.currentUserEmail {
+                                    Text("連携中: \(email)")
+                                        .font(.caption)
+                                        .foregroundColor(.green)
+                                        .fontWeight(.medium)
+                                }
+                                
+                                if let name = googleDriveService.currentUserName {
+                                    Text("アカウント: \(name)")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                                
                                 Text("録音ファイルが自動でGoogle Driveに保存されます")
-                                    .font(.caption)
+                                    .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
                             
@@ -161,6 +174,30 @@ struct SettingsView: View {
                                 
                                 Spacer()
                             }
+                        }
+                    }
+                }
+                
+                // デバッグセクション
+                Section(header: Text("🔬 デバッグ")) {
+                    NavigationLink {
+                        TranscriptionDebugView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "waveform.and.mic")
+                                .foregroundColor(.purple)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("文字起こしテスト")
+                                    .foregroundColor(.primary)
+                                    .fontWeight(.medium)
+                                
+                                Text("Apple Speech Framework POC")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
                         }
                     }
                 }

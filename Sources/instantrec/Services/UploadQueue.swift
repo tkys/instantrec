@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import UIKit
+import AVFoundation
 
 /// オフライン時のアップロードキューを管理するクラス
 class UploadQueue: ObservableObject {
@@ -137,9 +138,12 @@ class UploadQueue: ObservableObject {
         let audioService = AudioService()
         let fileURL = audioService.getDocumentsDirectory().appendingPathComponent(recording.fileName)
         
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            print("❌ Upload Queue: File not found: \(fileURL.path)")
-            recording.updateSyncStatus(.error, errorMessage: "ファイルが見つかりません")
+        // ファイル検証を実行
+        do {
+            try validateAudioFileForUpload(at: fileURL)
+        } catch {
+            print("❌ Upload Queue: File validation failed: \(error.localizedDescription)")
+            recording.updateSyncStatus(.error, errorMessage: "ファイル検証エラー: \(error.localizedDescription)")
             dequeue(item)
             saveContext()
             return
@@ -330,6 +334,68 @@ class UploadQueue: ObservableObject {
         }
         
         print("🔄 Upload Queue: Retrying upload for \(recording.fileName)")
+    }
+    
+    // MARK: - File Validation
+    
+    /// アップロード前のファイル検証
+    private func validateAudioFileForUpload(at url: URL) throws {
+        // ファイル存在確認
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw UploadError.fileNotFound
+        }
+        
+        // ファイル拡張子確認
+        guard url.pathExtension.lowercased() == "m4a" else {
+            throw UploadError.invalidFileType
+        }
+        
+        // ファイルサイズ確認
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        let fileSize = attributes[.size] as? UInt64 ?? 0
+        
+        guard fileSize > 0 else {
+            throw UploadError.emptyFile
+        }
+        
+        guard fileSize < 100 * 1024 * 1024 else { // 100MB制限
+            throw UploadError.fileTooLarge
+        }
+        
+        // 音声ファイルの整合性確認
+        let asset = AVURLAsset(url: url)
+        let duration = CMTimeGetSeconds(asset.duration)
+        
+        guard duration > 0 && !duration.isNaN && !duration.isInfinite else {
+            throw UploadError.invalidAudioFile
+        }
+        
+        print("✅ Upload Queue: File validation passed - \(fileSize) bytes, \(String(format: "%.2f", duration))s")
+    }
+}
+
+// MARK: - Error Types
+
+enum UploadError: LocalizedError {
+    case fileNotFound
+    case invalidFileType
+    case emptyFile
+    case fileTooLarge
+    case invalidAudioFile
+    
+    var errorDescription: String? {
+        switch self {
+        case .fileNotFound:
+            return "ファイルが見つかりません"
+        case .invalidFileType:
+            return "無効なファイル形式です"
+        case .emptyFile:
+            return "ファイルが空です"
+        case .fileTooLarge:
+            return "ファイルサイズが大きすぎます"
+        case .invalidAudioFile:
+            return "音声ファイルが破損しています"
+        }
     }
 }
 

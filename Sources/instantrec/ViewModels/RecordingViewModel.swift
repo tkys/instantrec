@@ -46,30 +46,51 @@ class RecordingViewModel: ObservableObject {
         }
         
         // 権限チェック
-        let currentStatus = AVAudioSession.sharedInstance().recordPermission
-        
-        if currentStatus == .granted {
-            audioService.permissionGranted = true
-            permissionStatus = .granted
+        if #available(iOS 17.0, *) {
+            let currentStatus = AVAudioApplication.shared.recordPermission
             
-            if let launchTime = appLaunchTime {
-                let permissionGrantedTime = CFAbsoluteTimeGetCurrent() - launchTime
-                print("✅ Permission granted at: \(String(format: "%.1f", permissionGrantedTime * 1000))ms")
+            if currentStatus == .granted {
+                audioService.permissionGranted = true
+                permissionStatus = .granted
+                
+                if let launchTime = appLaunchTime {
+                    let permissionCheckEnd = CACurrentMediaTime()
+                    let checkEndTime = permissionCheckEnd - launchTime
+                    print("✅ Permission granted at: \(String(format: "%.1f", checkEndTime * 1000))ms")
+                }
+                
+                // 権限が即座に許可されている場合は録音開始処理を実行
+                handleRecordingStart()
+                return
             }
-            
-            // 録音開始方式に応じて処理を分岐
-            handleRecordingStart()
         } else {
-            // 権限が未許可の場合のみ非同期で権限リクエスト
-            Task {
-                let granted = await audioService.requestMicrophonePermission()
-                await MainActor.run {
-                    if granted {
-                        permissionStatus = .granted
-                        handleRecordingStart()
-                    } else {
-                        permissionStatus = .denied
-                    }
+            let currentStatus = AVAudioSession.sharedInstance().recordPermission
+            
+            if currentStatus == .granted {
+                audioService.permissionGranted = true
+                permissionStatus = .granted
+                
+                if let launchTime = appLaunchTime {
+                    let permissionCheckEnd = CACurrentMediaTime()
+                    let checkEndTime = permissionCheckEnd - launchTime
+                    print("✅ Permission granted at: \(String(format: "%.1f", checkEndTime * 1000))ms")
+                }
+                
+                // 権限が即座に許可されている場合は録音開始処理を実行
+                handleRecordingStart()
+                return
+            }
+        }
+        
+        // 権限が未許可の場合のみ非同期で権限リクエスト
+        Task {
+            let granted = await audioService.requestMicrophonePermission()
+            await MainActor.run {
+                if granted {
+                    permissionStatus = .granted
+                    handleRecordingStart()
+                } else {
+                    permissionStatus = .denied
                 }
             }
         }
@@ -99,9 +120,10 @@ class RecordingViewModel: ObservableObject {
         // ナビゲーション状態をリセット
         navigateToList = false
         
-        // リストから戻ってきた時は設定に応じた録音開始
+        // リストから戻ってきた時は即座に録音開始（設定に関係なく）
         if permissionStatus == .granted && !isRecording {
-            handleRecordingStart()
+            print("🚀 returnFromList: Starting immediate recording")
+            startRecording()
         }
     }
     
@@ -109,9 +131,10 @@ class RecordingViewModel: ObservableObject {
         print("🔄 navigateToRecording called")
         navigateToList = false
         
-        // 設定に応じた録音開始
+        // 一覧画面からの録音開始は設定に関係なく即座に録音開始
         if permissionStatus == .granted && !isRecording {
-            handleRecordingStart()
+            print("🚀 navigateToRecording: Starting immediate recording")
+            startRecording()
         }
     }
     
@@ -178,6 +201,10 @@ class RecordingViewModel: ObservableObject {
                     self?.audioService.updateAudioLevel()
                 }
             }
+        } else {
+            print("❌ Recording failed to start - AudioService returned nil")
+            // 録音開始に失敗した場合、手動録音ボタンを表示
+            showManualRecordButton = true
         }
     }
 

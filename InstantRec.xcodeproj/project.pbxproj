@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0EB1FA1DC7F609393B6D05E1 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = F4F6A11242578F9BD448196B /* WhisperKit */; };
+		167898BA180CE446D9C017D6 /* TranscriptionDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 859A25849F6FB706A24AD8C1 /* TranscriptionDebugView.swift */; };
 		1A2334610A65929113928BC8 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = C95D5D84F4E928224ABCDCAB /* Localizable.strings */; };
 		1D5B8EE9D05B24A444FC672F /* PlaybackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCAF415A289D03120D67E00F /* PlaybackView.swift */; };
 		270CC6EBFB4D47A049EB74BD /* CountdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E2D8FA6FA79B8B3C4A1FD0C /* CountdownView.swift */; };
@@ -24,34 +26,38 @@
 		7794600D00AD890BDA48DBF9 /* InstantRecordApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E53F7381FFBA02293162E7AA /* InstantRecordApp.swift */; };
 		7BF5A9463C20C796FFD237E9 /* GoogleDriveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8624E8406F6641F8C21273ED /* GoogleDriveService.swift */; };
 		842A65D49587C8CE9A738E22 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = BB9D8E16DC77F7BCF0CCF16C /* Localizable.strings */; };
+		88108C34BDF4EA7D1C4E2CBC /* WhisperKitTranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BFFC2FD0F2B14FE72FEC2D3 /* WhisperKitTranscriptionService.swift */; };
 		89CB27433334E4716A13CA16 /* PlaybackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0146FAC45909519B082975EB /* PlaybackManager.swift */; };
 		91528FBD3BE1C2246CAAB455 /* CloudSyncStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A19052C51E04FD7EBE71381 /* CloudSyncStatus.swift */; };
-		944EFD68680AC3CD861045A9 /* Pods_InstantRec.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A9637573EC074044081B6BC /* Pods_InstantRec.framework */; };
 		980B01077BBBF9CBC846D73F /* RecordingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E5666614BE7A0F27C684F3 /* RecordingViewModel.swift */; };
+		B397826A7BACEB22ADC50EE7 /* Pods_InstantRec.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0C201465B1B9B4276627ED4A /* Pods_InstantRec.framework */; };
 		B4043093D405EE6A1274E035 /* RecordingModeSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614F942BC6F3402EDA493E81 /* RecordingModeSelectionView.swift */; };
 		C8DC144B631E9997C30A909E /* AudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254979AE1C5C66FE6464CE01 /* AudioService.swift */; };
+		E6FBCC65843C72747BBA089B /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7B7F653CF8F5875BA701BC /* TranscriptionService.swift */; };
 		FA6C0D45D3DDF6B4544A4B25 /* GoogleSignInConfiguration.plist in Resources */ = {isa = PBXBuildFile; fileRef = E211716221757AAFBA60C126 /* GoogleSignInConfiguration.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0146FAC45909519B082975EB /* PlaybackManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackManager.swift; sourceTree = "<group>"; };
 		084927FF052C81A4DED3908D /* RecordingsListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsListViewModel.swift; sourceTree = "<group>"; };
+		0C201465B1B9B4276627ED4A /* Pods_InstantRec.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_InstantRec.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		0DE4EC4F27CDE9FD6C9850B3 /* RecordingStartMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingStartMode.swift; sourceTree = "<group>"; };
+		0EAB1F2969AA84CCF034E52D /* Pods-InstantRec.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-InstantRec.debug.xcconfig"; path = "Target Support Files/Pods-InstantRec/Pods-InstantRec.debug.xcconfig"; sourceTree = "<group>"; };
 		1F013D508BB9C60E72C95F81 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
-		1F01B0882E5F76804FE0FE99 /* Pods-InstantRec.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-InstantRec.release.xcconfig"; path = "Target Support Files/Pods-InstantRec/Pods-InstantRec.release.xcconfig"; sourceTree = "<group>"; };
 		254979AE1C5C66FE6464CE01 /* AudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService.swift; sourceTree = "<group>"; };
-		28F8B789C796BC4B8D8021F7 /* Pods-InstantRec.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-InstantRec.debug.xcconfig"; path = "Target Support Files/Pods-InstantRec/Pods-InstantRec.debug.xcconfig"; sourceTree = "<group>"; };
 		296E2F4E71057CC06CCF3D80 /* RecordingRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingRowView.swift; sourceTree = "<group>"; };
+		3055BE96AF015F6072248B42 /* Pods-InstantRec.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-InstantRec.release.xcconfig"; path = "Target Support Files/Pods-InstantRec/Pods-InstantRec.release.xcconfig"; sourceTree = "<group>"; };
 		3B91117EF1C7A1D947B8D4B6 /* RecordingsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsListView.swift; sourceTree = "<group>"; };
 		3EABB21CC51E6F6C199DDA76 /* DateFormatter+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DateFormatter+Extensions.swift"; sourceTree = "<group>"; };
 		4A19052C51E04FD7EBE71381 /* CloudSyncStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncStatus.swift; sourceTree = "<group>"; };
 		4D2DEC80762BD3A6301A54E9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4E2D8FA6FA79B8B3C4A1FD0C /* CountdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownView.swift; sourceTree = "<group>"; };
+		5BFFC2FD0F2B14FE72FEC2D3 /* WhisperKitTranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitTranscriptionService.swift; sourceTree = "<group>"; };
 		614F942BC6F3402EDA493E81 /* RecordingModeSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingModeSelectionView.swift; sourceTree = "<group>"; };
 		78E001EF19DE89379C5FEBB1 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
+		859A25849F6FB706A24AD8C1 /* TranscriptionDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionDebugView.swift; sourceTree = "<group>"; };
 		8624E8406F6641F8C21273ED /* GoogleDriveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleDriveService.swift; sourceTree = "<group>"; };
 		94D67409375080B9FFBC99F5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		9A9637573EC074044081B6BC /* Pods_InstantRec.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_InstantRec.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		9DFA5019F57D1BD39A57F2C7 /* TimeInterval+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TimeInterval+Extensions.swift"; sourceTree = "<group>"; };
 		B9E5666614BE7A0F27C684F3 /* RecordingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingViewModel.swift; sourceTree = "<group>"; };
 		BB9D8E16DC77F7BCF0CCF16C /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = Localizable.strings; sourceTree = "<group>"; };
@@ -62,14 +68,16 @@
 		E211716221757AAFBA60C126 /* GoogleSignInConfiguration.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = GoogleSignInConfiguration.plist; sourceTree = "<group>"; };
 		E3A3D49BE268239F4FDD6E91 /* UploadQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadQueue.swift; sourceTree = "<group>"; };
 		E53F7381FFBA02293162E7AA /* InstantRecordApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstantRecordApp.swift; sourceTree = "<group>"; };
+		FA7B7F653CF8F5875BA701BC /* TranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		A05D72F790510D01F8D158F1 /* Frameworks */ = {
+		7D491F7CF27C80DA7976EE80 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				944EFD68680AC3CD861045A9 /* Pods_InstantRec.framework in Frameworks */,
+				0EB1FA1DC7F609393B6D05E1 /* WhisperKit in Frameworks */,
+				B397826A7BACEB22ADC50EE7 /* Pods_InstantRec.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -82,7 +90,9 @@
 				254979AE1C5C66FE6464CE01 /* AudioService.swift */,
 				8624E8406F6641F8C21273ED /* GoogleDriveService.swift */,
 				0146FAC45909519B082975EB /* PlaybackManager.swift */,
+				FA7B7F653CF8F5875BA701BC /* TranscriptionService.swift */,
 				E3A3D49BE268239F4FDD6E91 /* UploadQueue.swift */,
+				5BFFC2FD0F2B14FE72FEC2D3 /* WhisperKitTranscriptionService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -92,9 +102,18 @@
 			children = (
 				BEAEFC6B1CCBAC34555C26D2 /* Sources */,
 				8FC98CD04654CC4F954EB572 /* Products */,
-				378C63E3A00AC995ECD13020 /* Pods */,
-				8F9EB82179E87E4F0A5D8DFD /* Frameworks */,
+				0FB0152256F8862524D7A799 /* Pods */,
+				6D32F02ABD99679E0085BD46 /* Frameworks */,
 			);
+			sourceTree = "<group>";
+		};
+		0FB0152256F8862524D7A799 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				0EAB1F2969AA84CCF034E52D /* Pods-InstantRec.debug.xcconfig */,
+				3055BE96AF015F6072248B42 /* Pods-InstantRec.release.xcconfig */,
+			);
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		3447CBA9D9743933812D9836 /* App */ = {
@@ -103,15 +122,6 @@
 				E53F7381FFBA02293162E7AA /* InstantRecordApp.swift */,
 			);
 			path = App;
-			sourceTree = "<group>";
-		};
-		378C63E3A00AC995ECD13020 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				28F8B789C796BC4B8D8021F7 /* Pods-InstantRec.debug.xcconfig */,
-				1F01B0882E5F76804FE0FE99 /* Pods-InstantRec.release.xcconfig */,
-			);
-			path = Pods;
 			sourceTree = "<group>";
 		};
 		3B26382A77F01FD7ECB74605 /* Resources */ = {
@@ -134,10 +144,10 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
-		8F9EB82179E87E4F0A5D8DFD /* Frameworks */ = {
+		6D32F02ABD99679E0085BD46 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				9A9637573EC074044081B6BC /* Pods_InstantRec.framework */,
+				0C201465B1B9B4276627ED4A /* Pods_InstantRec.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -203,6 +213,7 @@
 				3B91117EF1C7A1D947B8D4B6 /* RecordingsListView.swift */,
 				78E001EF19DE89379C5FEBB1 /* RecordingView.swift */,
 				4D2DEC80762BD3A6301A54E9 /* SettingsView.swift */,
+				859A25849F6FB706A24AD8C1 /* TranscriptionDebugView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -214,17 +225,20 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = BC2E7186A3AF22779950AA69 /* Build configuration list for PBXNativeTarget "InstantRec" */;
 			buildPhases = (
-				CBB57AF8A9AC700D712FE97D /* [CP] Check Pods Manifest.lock */,
+				0D68B0B0DDE65321A30B4491 /* [CP] Check Pods Manifest.lock */,
 				D813C7C2829FC4FEEBC1702A /* Sources */,
 				91F71D312ECC98686D34B529 /* Resources */,
-				A05D72F790510D01F8D158F1 /* Frameworks */,
-				F9365BA5E751384E3E853B89 /* [CP] Embed Pods Frameworks */,
+				7D491F7CF27C80DA7976EE80 /* Frameworks */,
+				A25CC56455199BC4D413606C /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			name = InstantRec;
+			packageProductDependencies = (
+				F4F6A11242578F9BD448196B /* WhisperKit */,
+			);
 			productName = InstantRec;
 			productReference = D22BE5D0A61E8839C5E26F0A /* InstantRec.app */;
 			productType = "com.apple.product-type.application";
@@ -253,6 +267,9 @@
 			);
 			mainGroup = 01A2C05CF11CF659287D8B1E;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D1A9E81C8D49A152B0A4CFE5 /* XCRemoteSwiftPackageReference "whisperkit" */,
+			);
 			productRefGroup = 8FC98CD04654CC4F954EB572 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -276,7 +293,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		CBB57AF8A9AC700D712FE97D /* [CP] Check Pods Manifest.lock */ = {
+		0D68B0B0DDE65321A30B4491 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -298,7 +315,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		F9365BA5E751384E3E853B89 /* [CP] Embed Pods Frameworks */ = {
+		A25CC56455199BC4D413606C /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -345,7 +362,10 @@
 				56DA2F6D0D3866565ED0E358 /* RecordingsListViewModel.swift in Sources */,
 				357E979687EEB35EE24EA651 /* SettingsView.swift in Sources */,
 				721109023ACF03DB28CE06F8 /* TimeInterval+Extensions.swift in Sources */,
+				167898BA180CE446D9C017D6 /* TranscriptionDebugView.swift in Sources */,
+				E6FBCC65843C72747BBA089B /* TranscriptionService.swift in Sources */,
 				40A824BCFA2D569D1C26398A /* UploadQueue.swift in Sources */,
+				88108C34BDF4EA7D1C4E2CBC /* WhisperKitTranscriptionService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -365,7 +385,7 @@
 /* Begin XCBuildConfiguration section */
 		1CBD7A9CC4448A766470A09E /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 28F8B789C796BC4B8D8021F7 /* Pods-InstantRec.debug.xcconfig */;
+			baseConfigurationReference = 0EAB1F2969AA84CCF034E52D /* Pods-InstantRec.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -394,7 +414,7 @@
 		};
 		4114713338F71D4F98A9F04C /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1F01B0882E5F76804FE0FE99 /* Pods-InstantRec.release.xcconfig */;
+			baseConfigurationReference = 3055BE96AF015F6072248B42 /* Pods-InstantRec.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -562,6 +582,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		D1A9E81C8D49A152B0A4CFE5 /* XCRemoteSwiftPackageReference "whisperkit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/whisperkit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.8.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F4F6A11242578F9BD448196B /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D1A9E81C8D49A152B0A4CFE5 /* XCRemoteSwiftPackageReference "whisperkit" */;
+			productName = WhisperKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 569C72294494ADDDC8B2A4C5 /* Project object */;
 }

@@ -22,6 +22,8 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>このアプリは音声録音のためにマイクロフォンアクセスが必要です。</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>このアプリは録音ファイルの文字起こしのために音声認識が必要です。</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiredDeviceCapabilities</key>

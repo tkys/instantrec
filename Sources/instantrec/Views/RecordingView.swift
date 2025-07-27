@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct LazyAudioLevelMeter: View {
-    let audioLevel: Float
+    @ObservedObject var audioService: AudioService
     let isManualStart: Bool
     @State private var isLoaded = false
     
@@ -11,7 +11,7 @@ struct LazyAudioLevelMeter: View {
                 HStack(spacing: 3) {
                     ForEach(0..<20) { index in
                         let barThreshold = Float(index) / 20.0
-                        let isActive = audioLevel > barThreshold
+                        let isActive = audioService.audioLevel > barThreshold
                         Rectangle()
                             .fill(Color.red.opacity(isActive ? 0.9 : 0.2))
                             .frame(width: 3, height: 20)
@@ -48,7 +48,7 @@ struct LazyAudioLevelMeter: View {
 struct LazyRecordingInterface: View {
     let isRecording: Bool
     let elapsedTime: String
-    let audioLevel: Float
+    @ObservedObject var audioService: AudioService
     let stopAction: () -> Void
     let isManualStart: Bool
     
@@ -77,7 +77,7 @@ struct LazyRecordingInterface: View {
                         .font(.system(size: 60))
                         .foregroundColor(.red)
                     
-                    LazyAudioLevelMeter(audioLevel: audioLevel, isManualStart: isManualStart)
+                    LazyAudioLevelMeter(audioService: audioService, isManualStart: isManualStart)
                     
                     Text("processing_audio")
                         .foregroundColor(Color(UIColor.secondaryLabel))
@@ -165,7 +165,7 @@ struct RecordingView: View {
                             LazyRecordingInterface(
                                 isRecording: viewModel.isRecording,
                                 elapsedTime: viewModel.elapsedTime,
-                                audioLevel: viewModel.audioService.audioLevel,
+                                audioService: viewModel.audioService,
                                 stopAction: { viewModel.stopRecording() },
                                 isManualStart: (viewModel.showManualRecordButton == false && recordingSettings.recordingStartMode == .manual) || 
                                               (recordingSettings.recordingStartMode == .countdown)
@@ -219,12 +219,75 @@ struct RecordingView: View {
                                 }
                             }
                         } else {
-                            VStack {
-                                Text("starting_recording")
-                                    .foregroundColor(Color(UIColor.label))
-                                    .font(.title2)
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: Color(UIColor.label)))
+                            // 録音モードに応じた適切な初期状態を表示
+                            switch recordingSettings.recordingStartMode {
+                            case .manual:
+                                // 手動モードの場合は手動録音ボタン設定待ち
+                                VStack(spacing: 30) {
+                                    VStack(spacing: 8) {
+                                        HStack {
+                                            Circle()
+                                                .fill(Color.gray)
+                                                .frame(width: 12, height: 12)
+                                                .opacity(0.8)
+                                            
+                                            Text("準備完了")
+                                                .foregroundColor(Color(UIColor.label))
+                                                .font(.title2)
+                                                .fontWeight(.bold)
+                                        }
+                                    }
+                                    
+                                    VStack(spacing: 15) {
+                                        Image(systemName: "mic")
+                                            .font(.system(size: 60))
+                                            .foregroundColor(.gray)
+                                        
+                                        Text("録音開始の準備ができました")
+                                            .foregroundColor(Color(UIColor.secondaryLabel))
+                                            .font(.subheadline)
+                                    }
+                                    
+                                    Text("--:--")
+                                        .font(.system(.largeTitle, design: .monospaced, weight: .light))
+                                        .foregroundColor(Color(UIColor.secondaryLabel))
+                                    
+                                    Button(action: { viewModel.startManualRecording() }) {
+                                        HStack {
+                                            Image(systemName: "record.circle.fill")
+                                            Text("start")
+                                        }
+                                        .font(.title)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.white)
+                                        .frame(width: 200, height: 80)
+                                        .background(Color.red)
+                                        .cornerRadius(40)
+                                    }
+                                }
+                            case .countdown:
+                                // カウントダウンモードの場合は開始準備中
+                                VStack(spacing: 20) {
+                                    Image(systemName: "timer")
+                                        .font(.system(size: 60))
+                                        .foregroundColor(.orange)
+                                    
+                                    Text("カウントダウン準備中...")
+                                        .foregroundColor(Color(UIColor.label))
+                                        .font(.title2)
+                                    
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: Color.orange))
+                                }
+                            case .instantStart:
+                                // 即座録音の場合のみローディング表示
+                                VStack {
+                                    Text("starting_recording")
+                                        .foregroundColor(Color(UIColor.label))
+                                        .font(.title2)
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: Color(UIColor.label)))
+                                }
                             }
                         }
                     }
@@ -248,32 +311,39 @@ struct RecordingView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    if viewModel.isRecording || viewModel.showingCountdown {
-                        // 録音中またはカウントダウン中は一覧ボタンを表示
-                        Button("一覧") {
-                            print("📋 一覧ボタンがタップされました")
-                            if viewModel.showingCountdown {
-                                // カウントダウン中の場合は直接一覧画面に移動
-                                viewModel.onCountdownCancel()
-                                viewModel.navigateToList = true
-                            } else {
-                                // 録音中の場合は破棄確認ダイアログを表示
+                    Group {
+                        if viewModel.isRecording {
+                            // 録音中は破棄確認付きの一覧ボタン
+                            Button("一覧") {
+                                print("📋 録音中: 一覧ボタンがタップされました")
                                 showingDiscardAlert = true
                             }
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        } else if viewModel.showingCountdown {
+                            // カウントダウン中はキャンセル付きの一覧ボタン
+                            Button("一覧") {
+                                print("📋 カウントダウン中: 一覧ボタンがタップされました")
+                                viewModel.onCountdownCancel()
+                                viewModel.navigateToList = true
+                            }
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        } else if viewModel.showManualRecordButton || viewModel.permissionStatus == .granted {
+                            // 手動録音待機中や権限許可済みの場合は一覧ボタン
+                            Button("一覧") {
+                                print("📋 待機中: 一覧ボタンがタップされました")
+                                viewModel.navigateToList = true
+                            }
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        } else {
+                            // 権限未許可時などは何も表示しない
+                            EmptyView()
                         }
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                    } else if viewModel.showManualRecordButton {
-                        // 手動録音待機時は設定ボタンを表示
-                        Button(action: {
-                            showingSettings = true
-                        }) {
-                            Image(systemName: "gearshape.fill")
-                                .font(.title3)
-                        }
-                    } else {
-                        // その他の状態では何も表示しない
-                        EmptyView()
+                    }
+                    .onAppear {
+                        print("🛠️ Toolbar onAppear - isRecording: \(viewModel.isRecording), showingCountdown: \(viewModel.showingCountdown), showManualRecordButton: \(viewModel.showManualRecordButton)")
                     }
                 }
             }
@@ -307,10 +377,32 @@ struct RecordingView: View {
             .onAppear {
                 print("🎬 RecordingView onAppear - permission: \(viewModel.permissionStatus), isRecording: \(viewModel.isRecording), navigateToList: \(viewModel.navigateToList)")
                 
-                // リストから戻ってきた時の処理
-                if viewModel.permissionStatus == .granted && !viewModel.isRecording && viewModel.navigateToList == false {
-                    print("🔄 Calling returnFromList() in RecordingView onAppear")
-                    viewModel.returnFromList()
+                // 一覧画面から戻ってきた場合の処理
+                if viewModel.navigateToList {
+                    print("🔄 Returned from list, handling based on recording mode")
+                    viewModel.navigateToList = false
+                    if viewModel.permissionStatus == .granted && !viewModel.isRecording {
+                        // 録音開始方式に応じて適切な処理を実行
+                        switch recordingSettings.recordingStartMode {
+                        case .countdown:
+                            print("⏰ Starting countdown for list return")
+                            viewModel.showingCountdown = true
+                        case .manual:
+                            print("🎙️ Showing manual record button for list return")
+                            viewModel.showManualRecordButton = true
+                        case .instantStart:
+                            print("🚀 Starting immediate recording for list return")
+                            // UI更新を確実にするため、少し遅延させて録音開始
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                viewModel.startRecording()
+                            }
+                        }
+                    }
+                }
+                // アプリ起動時などで権限確認が必要な場合
+                else if viewModel.permissionStatus == .unknown {
+                    print("🔐 Permission unknown, checking permissions")
+                    viewModel.checkPermissions()
                 }
             }
         }
