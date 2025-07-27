@@ -8,8 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		0EB1FA1DC7F609393B6D05E1 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = F4F6A11242578F9BD448196B /* WhisperKit */; };
+		10A260074A5D8C7667F73AF0 /* Pods_InstantRec.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 00C1D97270B667310EF4433F /* Pods_InstantRec.framework */; };
 		167898BA180CE446D9C017D6 /* TranscriptionDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 859A25849F6FB706A24AD8C1 /* TranscriptionDebugView.swift */; };
 		1A2334610A65929113928BC8 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = C95D5D84F4E928224ABCDCAB /* Localizable.strings */; };
+		1A954507555656C59D280472 /* AudioProcessingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F242F426C551958E5877442 /* AudioProcessingService.swift */; };
 		1D5B8EE9D05B24A444FC672F /* PlaybackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCAF415A289D03120D67E00F /* PlaybackView.swift */; };
 		270CC6EBFB4D47A049EB74BD /* CountdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E2D8FA6FA79B8B3C4A1FD0C /* CountdownView.swift */; };
 		2F244FE69E8B58DAFFEE2A96 /* ActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C708F2B339F986D3DD8233CD /* ActivityView.swift */; };
@@ -18,6 +20,7 @@
 		40A824BCFA2D569D1C26398A /* UploadQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3A3D49BE268239F4FDD6E91 /* UploadQueue.swift */; };
 		43F01BB9730EDCB84A2EDF61 /* Recording.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC5DE46AF6C1BD647516F828 /* Recording.swift */; };
 		49994FF562AB1BF0AC401C26 /* RecordingsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B91117EF1C7A1D947B8D4B6 /* RecordingsListView.swift */; };
+		4B6CC31B4FA758AFF29E7B82 /* AudioSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1618286DC892C5D188A6864B /* AudioSettingsView.swift */; };
 		56DA2F6D0D3866565ED0E358 /* RecordingsListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084927FF052C81A4DED3908D /* RecordingsListViewModel.swift */; };
 		6240167FC1671B6E25FE008A /* RecordingStartMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE4EC4F27CDE9FD6C9850B3 /* RecordingStartMode.swift */; };
 		67811194A33B2CA2F96E01D9 /* RecordingRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 296E2F4E71057CC06CCF3D80 /* RecordingRowView.swift */; };
@@ -30,7 +33,6 @@
 		89CB27433334E4716A13CA16 /* PlaybackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0146FAC45909519B082975EB /* PlaybackManager.swift */; };
 		91528FBD3BE1C2246CAAB455 /* CloudSyncStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A19052C51E04FD7EBE71381 /* CloudSyncStatus.swift */; };
 		980B01077BBBF9CBC846D73F /* RecordingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E5666614BE7A0F27C684F3 /* RecordingViewModel.swift */; };
-		B397826A7BACEB22ADC50EE7 /* Pods_InstantRec.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0C201465B1B9B4276627ED4A /* Pods_InstantRec.framework */; };
 		B4043093D405EE6A1274E035 /* RecordingModeSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614F942BC6F3402EDA493E81 /* RecordingModeSelectionView.swift */; };
 		C8DC144B631E9997C30A909E /* AudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254979AE1C5C66FE6464CE01 /* AudioService.swift */; };
 		E6FBCC65843C72747BBA089B /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7B7F653CF8F5875BA701BC /* TranscriptionService.swift */; };
@@ -38,17 +40,18 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		00C1D97270B667310EF4433F /* Pods_InstantRec.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_InstantRec.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		0146FAC45909519B082975EB /* PlaybackManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackManager.swift; sourceTree = "<group>"; };
 		084927FF052C81A4DED3908D /* RecordingsListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsListViewModel.swift; sourceTree = "<group>"; };
-		0C201465B1B9B4276627ED4A /* Pods_InstantRec.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_InstantRec.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		0DE4EC4F27CDE9FD6C9850B3 /* RecordingStartMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingStartMode.swift; sourceTree = "<group>"; };
-		0EAB1F2969AA84CCF034E52D /* Pods-InstantRec.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-InstantRec.debug.xcconfig"; path = "Target Support Files/Pods-InstantRec/Pods-InstantRec.debug.xcconfig"; sourceTree = "<group>"; };
+		1618286DC892C5D188A6864B /* AudioSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSettingsView.swift; sourceTree = "<group>"; };
 		1F013D508BB9C60E72C95F81 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		254979AE1C5C66FE6464CE01 /* AudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService.swift; sourceTree = "<group>"; };
 		296E2F4E71057CC06CCF3D80 /* RecordingRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingRowView.swift; sourceTree = "<group>"; };
-		3055BE96AF015F6072248B42 /* Pods-InstantRec.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-InstantRec.release.xcconfig"; path = "Target Support Files/Pods-InstantRec/Pods-InstantRec.release.xcconfig"; sourceTree = "<group>"; };
+		2F242F426C551958E5877442 /* AudioProcessingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioProcessingService.swift; sourceTree = "<group>"; };
 		3B91117EF1C7A1D947B8D4B6 /* RecordingsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsListView.swift; sourceTree = "<group>"; };
 		3EABB21CC51E6F6C199DDA76 /* DateFormatter+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DateFormatter+Extensions.swift"; sourceTree = "<group>"; };
+		47479FA7FE6EB2300F7AAB6A /* Pods-InstantRec.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-InstantRec.debug.xcconfig"; path = "Target Support Files/Pods-InstantRec/Pods-InstantRec.debug.xcconfig"; sourceTree = "<group>"; };
 		4A19052C51E04FD7EBE71381 /* CloudSyncStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncStatus.swift; sourceTree = "<group>"; };
 		4D2DEC80762BD3A6301A54E9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4E2D8FA6FA79B8B3C4A1FD0C /* CountdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownView.swift; sourceTree = "<group>"; };
@@ -64,6 +67,7 @@
 		C708F2B339F986D3DD8233CD /* ActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityView.swift; sourceTree = "<group>"; };
 		CCAF415A289D03120D67E00F /* PlaybackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackView.swift; sourceTree = "<group>"; };
 		D22BE5D0A61E8839C5E26F0A /* InstantRec.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InstantRec.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D4D065B24E71BB130A70AEE6 /* Pods-InstantRec.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-InstantRec.release.xcconfig"; path = "Target Support Files/Pods-InstantRec/Pods-InstantRec.release.xcconfig"; sourceTree = "<group>"; };
 		DC5DE46AF6C1BD647516F828 /* Recording.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recording.swift; sourceTree = "<group>"; };
 		E211716221757AAFBA60C126 /* GoogleSignInConfiguration.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = GoogleSignInConfiguration.plist; sourceTree = "<group>"; };
 		E3A3D49BE268239F4FDD6E91 /* UploadQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadQueue.swift; sourceTree = "<group>"; };
@@ -77,7 +81,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0EB1FA1DC7F609393B6D05E1 /* WhisperKit in Frameworks */,
-				B397826A7BACEB22ADC50EE7 /* Pods_InstantRec.framework in Frameworks */,
+				10A260074A5D8C7667F73AF0 /* Pods_InstantRec.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -87,6 +91,7 @@
 		012AB28AFF5630E272795DB6 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				2F242F426C551958E5877442 /* AudioProcessingService.swift */,
 				254979AE1C5C66FE6464CE01 /* AudioService.swift */,
 				8624E8406F6641F8C21273ED /* GoogleDriveService.swift */,
 				0146FAC45909519B082975EB /* PlaybackManager.swift */,
@@ -102,18 +107,9 @@
 			children = (
 				BEAEFC6B1CCBAC34555C26D2 /* Sources */,
 				8FC98CD04654CC4F954EB572 /* Products */,
-				0FB0152256F8862524D7A799 /* Pods */,
-				6D32F02ABD99679E0085BD46 /* Frameworks */,
+				91C4DF156332037F2BFDD00F /* Pods */,
+				403F842C298D9C5515122C9A /* Frameworks */,
 			);
-			sourceTree = "<group>";
-		};
-		0FB0152256F8862524D7A799 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				0EAB1F2969AA84CCF034E52D /* Pods-InstantRec.debug.xcconfig */,
-				3055BE96AF015F6072248B42 /* Pods-InstantRec.release.xcconfig */,
-			);
-			path = Pods;
 			sourceTree = "<group>";
 		};
 		3447CBA9D9743933812D9836 /* App */ = {
@@ -134,6 +130,14 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		403F842C298D9C5515122C9A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				00C1D97270B667310EF4433F /* Pods_InstantRec.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		526C59D0ADCD9FB4C5A56EAD /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -144,20 +148,21 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
-		6D32F02ABD99679E0085BD46 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				0C201465B1B9B4276627ED4A /* Pods_InstantRec.framework */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
 		8FC98CD04654CC4F954EB572 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				D22BE5D0A61E8839C5E26F0A /* InstantRec.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		91C4DF156332037F2BFDD00F /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				47479FA7FE6EB2300F7AAB6A /* Pods-InstantRec.debug.xcconfig */,
+				D4D065B24E71BB130A70AEE6 /* Pods-InstantRec.release.xcconfig */,
+			);
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		9BC65B14DD3E792BB73661C0 /* Sources */ = {
@@ -206,6 +211,7 @@
 			isa = PBXGroup;
 			children = (
 				C708F2B339F986D3DD8233CD /* ActivityView.swift */,
+				1618286DC892C5D188A6864B /* AudioSettingsView.swift */,
 				4E2D8FA6FA79B8B3C4A1FD0C /* CountdownView.swift */,
 				CCAF415A289D03120D67E00F /* PlaybackView.swift */,
 				614F942BC6F3402EDA493E81 /* RecordingModeSelectionView.swift */,
@@ -225,11 +231,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = BC2E7186A3AF22779950AA69 /* Build configuration list for PBXNativeTarget "InstantRec" */;
 			buildPhases = (
-				0D68B0B0DDE65321A30B4491 /* [CP] Check Pods Manifest.lock */,
+				479C1B0B8C1C51B71FE53CBD /* [CP] Check Pods Manifest.lock */,
 				D813C7C2829FC4FEEBC1702A /* Sources */,
 				91F71D312ECC98686D34B529 /* Resources */,
 				7D491F7CF27C80DA7976EE80 /* Frameworks */,
-				A25CC56455199BC4D413606C /* [CP] Embed Pods Frameworks */,
+				D346E926035BC62A921288B5 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -293,7 +299,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		0D68B0B0DDE65321A30B4491 /* [CP] Check Pods Manifest.lock */ = {
+		479C1B0B8C1C51B71FE53CBD /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -315,7 +321,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		A25CC56455199BC4D413606C /* [CP] Embed Pods Frameworks */ = {
+		D346E926035BC62A921288B5 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -344,7 +350,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				2F244FE69E8B58DAFFEE2A96 /* ActivityView.swift in Sources */,
+				1A954507555656C59D280472 /* AudioProcessingService.swift in Sources */,
 				C8DC144B631E9997C30A909E /* AudioService.swift in Sources */,
+				4B6CC31B4FA758AFF29E7B82 /* AudioSettingsView.swift in Sources */,
 				91528FBD3BE1C2246CAAB455 /* CloudSyncStatus.swift in Sources */,
 				270CC6EBFB4D47A049EB74BD /* CountdownView.swift in Sources */,
 				2F76EF9C37FB183F01228D40 /* DateFormatter+Extensions.swift in Sources */,
@@ -385,7 +393,7 @@
 /* Begin XCBuildConfiguration section */
 		1CBD7A9CC4448A766470A09E /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 0EAB1F2969AA84CCF034E52D /* Pods-InstantRec.debug.xcconfig */;
+			baseConfigurationReference = 47479FA7FE6EB2300F7AAB6A /* Pods-InstantRec.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -414,7 +422,7 @@
 		};
 		4114713338F71D4F98A9F04C /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 3055BE96AF015F6072248B42 /* Pods-InstantRec.release.xcconfig */;
+			baseConfigurationReference = D4D065B24E71BB130A70AEE6 /* Pods-InstantRec.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";

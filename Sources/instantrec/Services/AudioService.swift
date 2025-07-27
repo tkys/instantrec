@@ -2,6 +2,45 @@
 import Foundation
 import AVFoundation
 
+/// 録音モード定義
+enum RecordingMode: String, CaseIterable {
+    case conversation = "conversation"     // 会話特化
+    case ambient = "ambient"              // 環境音全体
+    case voiceOver = "voiceOver"          // ナレーション録音
+    case meeting = "meeting"              // 会議録音
+    case balanced = "balanced"            // バランス型
+    
+    var displayName: String {
+        switch self {
+        case .conversation: return "会話モード"
+        case .ambient: return "環境音モード"
+        case .voiceOver: return "ナレーションモード"
+        case .meeting: return "会議モード"
+        case .balanced: return "バランスモード"
+        }
+    }
+    
+    var audioSessionMode: AVAudioSession.Mode {
+        switch self {
+        case .conversation: return .voiceChat
+        case .ambient: return .default
+        case .voiceOver: return .measurement
+        case .meeting: return .videoRecording
+        case .balanced: return .default
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .conversation: return "人の声を明瞭に録音、背景ノイズ抑制"
+        case .ambient: return "すべての音を忠実に録音、自然な音響"
+        case .voiceOver: return "高品質ナレーション録音、ノイズ最小化"
+        case .meeting: return "複数話者対応、会議室音響最適化"
+        case .balanced: return "音声と環境音の両立、汎用的"
+        }
+    }
+}
+
 class AudioService: ObservableObject {
     var audioRecorder: AVAudioRecorder?
     var audioPlayer: AVAudioPlayer?
@@ -12,14 +51,36 @@ class AudioService: ObservableObject {
         // 初期化時はAudioSession設定をスキップ（パフォーマンス最適化）
     }
     
-    private func setupAudioSessionOnDemand() {
+    private func setupAudioSessionOnDemand(recordingMode: RecordingMode = .balanced) {
         let session = AVAudioSession.sharedInstance()
         do {
-            print("🔊 Setting up audio session...")
+            print("🔊 Setting up audio session for mode: \(recordingMode.displayName)")
             
-            // 録音・再生両対応（より安全なオプション設定）
-            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
-            print("🔊 Audio session category set: \(session.category)")
+            // モード別のオーディオセッション設定
+            let sessionMode = recordingMode.audioSessionMode
+            var options: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth]
+            
+            // 録音モード別の追加オプション
+            switch recordingMode {
+            case .conversation, .meeting:
+                // 音声通話最適化
+                options.insert(.allowBluetoothA2DP)
+            case .ambient:
+                // 環境音録音では外部マイクを優先
+                options.insert(.allowAirPlay)
+            case .voiceOver:
+                // ナレーション録音では高品質設定
+                options.insert(.overrideMutedMicrophoneInterruption)
+            case .balanced:
+                // バランスモード - デフォルト設定を使用
+                break
+            }
+            
+            try session.setCategory(.playAndRecord, mode: sessionMode, options: options)
+            print("🔊 Audio session configured: category=\(session.category), mode=\(sessionMode)")
+            
+            // 指向性マイク設定（対応デバイスのみ）
+            configureDirectionalMicrophone(for: recordingMode, session: session)
             
             try session.setActive(true)
             print("🔊 Audio session activated successfully")
@@ -318,5 +379,89 @@ class AudioService: ObservableObject {
         let retryResult = recorder.record()
         print("🔍 Retry result: \(retryResult)")
         print("🔍 --- End Diagnosis ---")
+    }
+    
+    // MARK: - 指向性マイク設定
+    
+    /// 指向性マイクの設定（iPhone対応）
+    private func configureDirectionalMicrophone(for mode: RecordingMode, session: AVAudioSession) {
+        do {
+            // 利用可能な入力デバイスを確認
+            guard let availableInputs = session.availableInputs else {
+                print("🎤 No available inputs found")
+                return
+            }
+            
+            print("🎤 Available inputs: \(availableInputs.map { $0.portName })")
+            
+            // 内蔵マイクを探す
+            let builtInMic = availableInputs.first { input in
+                input.portType == .builtInMic
+            }
+            
+            guard let builtIn = builtInMic else {
+                print("🎤 Built-in microphone not found")
+                return
+            }
+            
+            // 内蔵マイクを優先入力に設定
+            try session.setPreferredInput(builtIn)
+            print("🎤 Preferred input set to: \(builtIn.portName)")
+            
+            // データソース設定（指向性対応）
+            if let dataSources = builtIn.dataSources, !dataSources.isEmpty {
+                print("🎤 Available data sources: \(dataSources.map { $0.dataSourceName })")
+                
+                // モード別のデータソース選択
+                let preferredDataSource = selectDataSource(for: mode, from: dataSources)
+                
+                if let preferred = preferredDataSource {
+                    try builtIn.setPreferredDataSource(preferred)
+                    print("🎤 Preferred data source set to: \(preferred.dataSourceName)")
+                }
+            }
+            
+            // 入力ゲイン設定
+            if session.isInputGainSettable {
+                let targetGain = getTargetGain(for: mode)
+                try session.setInputGain(targetGain)
+                print("🎤 Input gain set to: \(targetGain)")
+            }
+            
+        } catch {
+            print("❌ Failed to configure directional microphone: \(error)")
+        }
+    }
+    
+    /// モード別のデータソース選択
+    private func selectDataSource(for mode: RecordingMode, from dataSources: [AVAudioSessionDataSourceDescription]) -> AVAudioSessionDataSourceDescription? {
+        switch mode {
+        case .conversation, .meeting:
+            // フロント向きマイク（ノイズキャンセリング対応）
+            return dataSources.first { $0.dataSourceName.contains("Front") || $0.dataSourceName.contains("Top") }
+        case .ambient:
+            // 全方向マイク
+            return dataSources.first { $0.dataSourceName.contains("Back") || $0.dataSourceName.contains("Bottom") }
+        case .voiceOver:
+            // 高感度フロントマイク
+            return dataSources.first { $0.dataSourceName.contains("Front") }
+        case .balanced:
+            // デフォルト
+            return dataSources.first
+        }
+    }
+    
+    /// モード別の入力ゲイン設定
+    private func getTargetGain(for mode: RecordingMode) -> Float {
+        switch mode {
+        case .conversation, .voiceOver:
+            return 0.8  // 高感度
+        case .ambient:
+            return 0.6  // 標準感度
+        case .meeting:
+            return 0.7  // 中～高感度
+        case .balanced:
+            return 0.65 // バランス
+        }
     }
 }
