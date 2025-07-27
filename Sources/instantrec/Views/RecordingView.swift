@@ -310,6 +310,19 @@ struct RecordingView: View {
                 RecordingsListView()
             }
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    // セグメント録音ボタン
+                    NavigationLink(destination: SegmentedRecordingView()) {
+                        HStack {
+                            Image(systemName: "timer")
+                            Text("セグメント録音")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                    }
+                    .disabled(viewModel.isRecording)
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Group {
                         if viewModel.isRecording {

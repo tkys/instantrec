@@ -49,6 +49,7 @@ class AudioService: ObservableObject {
     
     init() {
         // 初期化時はAudioSession設定をスキップ（パフォーマンス最適化）
+        setupAudioSessionInterruptionHandling()
     }
     
     private func setupAudioSessionOnDemand(recordingMode: RecordingMode = .balanced) {
@@ -159,9 +160,19 @@ class AudioService: ObservableObject {
 
     func startRecording(fileName: String) -> URL? {
         guard permissionGranted else {
-            print("Microphone permission not granted")
+            print("❌ Microphone permission not granted")
             return nil
         }
+        
+        // ディスク容量チェック
+        guard checkAvailableDiskSpace() else {
+            print("❌ Insufficient disk space for recording")
+            return nil
+        }
+        
+        // メモリ使用量ログ
+        let memoryUsage = getMemoryUsage()
+        print("💾 Current memory usage: \(memoryUsage / 1024 / 1024)MB")
         
         let audioStartTime = CFAbsoluteTimeGetCurrent()
         
@@ -463,5 +474,155 @@ class AudioService: ObservableObject {
         case .balanced:
             return 0.65 // バランス
         }
+    }
+    
+    // MARK: - AudioSession中断処理
+    
+    /// AudioSession中断処理の設定
+    private func setupAudioSessionInterruptionHandling() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioSessionInterruption),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioSessionRouteChange),
+            name: AVAudioSession.routeChangeNotification,
+            object: nil
+        )
+        
+        print("🔔 AudioSession interruption handling setup completed")
+    }
+    
+    /// AudioSession中断通知の処理
+    @objc private func handleAudioSessionInterruption(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        
+        print("🚫 AudioSession interruption detected: \(type)")
+        
+        switch type {
+        case .began:
+            print("🚫 Audio session interrupted - recording will be paused")
+            // 録音中断を記録（自動的にAVAudioRecorderが一時停止）
+            
+        case .ended:
+            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                if options.contains(.shouldResume) {
+                    print("🔄 Audio session interruption ended - attempting to resume")
+                    resumeAudioSessionAfterInterruption()
+                } else {
+                    print("⚠️ Audio session interruption ended but should not resume")
+                }
+            }
+        @unknown default:
+            print("⚠️ Unknown interruption type: \(type)")
+            break
+        }
+    }
+    
+    /// AudioSessionルート変更通知の処理
+    @objc private func handleAudioSessionRouteChange(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else {
+            return
+        }
+        
+        print("🔄 AudioSession route changed: \(reason)")
+        
+        switch reason {
+        case .newDeviceAvailable:
+            print("🎧 New audio device connected")
+        case .oldDeviceUnavailable:
+            print("🎧 Audio device disconnected")
+        case .categoryChange:
+            print("📱 Audio category changed")
+        case .override:
+            print("🔄 Audio route override")
+        case .wakeFromSleep:
+            print("😴 Audio route changed due to wake from sleep")
+        case .noSuitableRouteForCategory:
+            print("❌ No suitable route for current category")
+        case .routeConfigurationChange:
+            print("⚙️ Route configuration changed")
+        @unknown default:
+            print("❓ Unknown route change reason: \(reason)")
+        }
+    }
+    
+    /// 中断後のAudioSession復帰処理
+    private func resumeAudioSessionAfterInterruption() {
+        do {
+            try AVAudioSession.sharedInstance().setActive(true)
+            print("✅ AudioSession reactivated after interruption")
+            
+            // 録音が継続されているかチェック
+            if let recorder = audioRecorder, !recorder.isRecording {
+                print("🔄 Attempting to resume recording after interruption")
+                let resumed = recorder.record()
+                print("📱 Recording resume result: \(resumed)")
+            }
+            
+        } catch {
+            print("❌ Failed to reactivate AudioSession after interruption: \(error)")
+        }
+    }
+    
+    // MARK: - メモリ管理・最適化
+    
+    /// ディスク容量監視
+    private func checkAvailableDiskSpace() -> Bool {
+        do {
+            let documentDirectory = getDocumentsDirectory()
+            let systemAttributes = try FileManager.default.attributesOfFileSystem(forPath: documentDirectory.path)
+            
+            if let freeSize = systemAttributes[.systemFreeSize] as? NSNumber {
+                let freeSizeGB = freeSize.doubleValue / (1024 * 1024 * 1024)
+                print("💾 Available disk space: \(String(format: "%.1f", freeSizeGB))GB")
+                
+                // 1GB未満の場合は警告
+                if freeSizeGB < 1.0 {
+                    print("⚠️ Low disk space warning: \(String(format: "%.1f", freeSizeGB))GB remaining")
+                    return false
+                }
+                return true
+            }
+        } catch {
+            print("❌ Failed to check disk space: \(error)")
+        }
+        return false
+    }
+    
+    /// メモリ使用量取得
+    private func getMemoryUsage() -> UInt64 {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size)/4
+        
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                task_info(mach_task_self_,
+                         task_flavor_t(MACH_TASK_BASIC_INFO),
+                         $0,
+                         &count)
+            }
+        }
+        
+        if result == KERN_SUCCESS {
+            return info.resident_size
+        } else {
+            return 0
+        }
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 }
