@@ -223,9 +223,59 @@ class RecordingViewModel: ObservableObject {
                 // Google Driveアップロードをキューに追加
                 uploadQueue.enqueue(recording: newRecording)
                 
+                // Auto Transcription処理
+                processAutoTranscription(for: newRecording, fileName: fileName)
+                
                 navigateToList = true
             } catch {
                 print("Failed to save recording: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func processAutoTranscription(for recording: Recording, fileName: String) {
+        guard recordingSettings.autoTranscriptionEnabled else {
+            print("🔇 Auto transcription disabled, skipping")
+            return
+        }
+        
+        print("🗣️ Starting auto transcription for: \(fileName)")
+        
+        // 処理開始のステータスを設定
+        recording.transcriptionStatus = .processing
+        
+        Task {
+            let audioURL = audioService.getDocumentsDirectory().appendingPathComponent(fileName)
+            
+            guard FileManager.default.fileExists(atPath: audioURL.path) else {
+                print("❌ Audio file not found: \(audioURL.path)")
+                return
+            }
+            
+            do {
+                let whisperService = WhisperKitTranscriptionService.shared
+                try await whisperService.transcribeAudioFile(at: audioURL)
+                
+                await MainActor.run {
+                    recording.transcription = whisperService.transcriptionText
+                    recording.transcriptionDate = Date()
+                    recording.transcriptionStatus = .completed
+                    
+                    do {
+                        try self.modelContext?.save()
+                        print("✅ Transcription completed and saved: \(whisperService.transcriptionText.prefix(100))...")
+                    } catch {
+                        print("❌ Failed to save transcription: \(error)")
+                    }
+                }
+            } catch {
+                print("❌ Transcription failed: \(error)")
+                await MainActor.run {
+                    recording.transcription = "Transcription failed: \(error.localizedDescription)"
+                    recording.transcriptionDate = Date()
+                    recording.transcriptionStatus = .error
+                    try? self.modelContext?.save()
+                }
             }
         }
     }

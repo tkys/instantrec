@@ -4,7 +4,8 @@ import AVFoundation
 import CoreMedia
 
 /// WhisperKit モデル選択列挙型
-enum WhisperKitModel: String, CaseIterable {
+enum WhisperKitModel: String, CaseIterable, Identifiable {
+    var id: String { rawValue }
     case tiny = "tiny"
     case base = "base"
     case small = "small"
@@ -62,6 +63,9 @@ class WhisperKitTranscriptionService: ObservableObject {
     /// 使用可能なモデル一覧
     @Published var availableModels: [WhisperKitModel] = WhisperKitModel.allCases
     
+    /// ダウンロード済みモデル一覧
+    @Published var downloadedModels: Set<WhisperKitModel> = [.tiny] // tinyはプリインストール
+    
     // MARK: - Private Properties
     
     /// WhisperKitインスタンス
@@ -92,18 +96,68 @@ class WhisperKitTranscriptionService: ObservableObject {
             print("🔧 Initializing WhisperKit with model: \(selectedModel.rawValue)")
             
             // WhisperKitConfigでモデルを指定して初期化
-            let config = WhisperKitConfig(model: selectedModel.rawValue)
+            let config = WhisperKitConfig(
+                model: selectedModel.rawValue,
+                verbose: true,
+                logLevel: .info,
+                prewarm: false, // プレウォーミングを無効化（初期化高速化）
+                load: true,     // モデルを即座にロード
+                download: true  // 必要に応じてモデルをダウンロード
+            )
+            
+            print("📥 Starting WhisperKit initialization (model may download if not cached)...")
             whisperKit = try await WhisperKit(config)
             isInitialized = true
             initializationError = nil
             
             print("✅ WhisperKit initialized successfully with \(selectedModel.displayName)")
             
+            // モデルがダウンロード済みとしてマーク
+            downloadedModels.insert(selectedModel)
+            
         } catch {
             print("❌ Failed to initialize WhisperKit with model \(selectedModel.rawValue): \(error)")
             initializationError = error
             isInitialized = false
             errorMessage = "音声認識エンジンの初期化に失敗しました (\(selectedModel.displayName)): \(error.localizedDescription)"
+            
+            // 初期化失敗時にtinyモデルでリトライ
+            if selectedModel != .tiny {
+                print("🔄 Retrying with tiny model as fallback...")
+                selectedModel = .tiny
+                await initializeWhisperKitFallback()
+            }
+        }
+    }
+    
+    /// フォールバック初期化（tinyモデル）
+    @MainActor
+    private func initializeWhisperKitFallback() async {
+        do {
+            print("🔧 Fallback: Initializing WhisperKit with tiny model")
+            let config = WhisperKitConfig(
+                model: "tiny",
+                verbose: true,
+                logLevel: .info,
+                prewarm: false,
+                load: true,
+                download: true
+            )
+            
+            whisperKit = try await WhisperKit(config)
+            isInitialized = true
+            initializationError = nil
+            
+            print("✅ WhisperKit fallback initialization successful with tiny model")
+            
+            // tinyモデルがダウンロード済みとしてマーク
+            downloadedModels.insert(.tiny)
+            
+        } catch {
+            print("❌ WhisperKit fallback initialization also failed: \(error)")
+            initializationError = error
+            isInitialized = false
+            errorMessage = "音声認識エンジンの初期化に失敗しました（フォールバック含む）: \(error.localizedDescription)"
         }
     }
     
@@ -122,6 +176,35 @@ class WhisperKitTranscriptionService: ObservableObject {
         }
         
         let startTime = Date()
+        
+        // 初期化が完了するまで待機
+        if !isInitialized {
+            print("⏳ WhisperKit not initialized, waiting for initialization...")
+            
+            // 最大30秒まで初期化完了を待機
+            let maxWaitTime = 30.0
+            let checkInterval = 0.5
+            var totalWaitTime = 0.0
+            
+            while !isInitialized && totalWaitTime < maxWaitTime {
+                try await Task.sleep(nanoseconds: UInt64(checkInterval * 1_000_000_000))
+                totalWaitTime += checkInterval
+                
+                // 初期化エラーがある場合は即座に終了
+                if let error = initializationError {
+                    print("❌ WhisperKit initialization failed during wait: \(error)")
+                    throw WhisperKitTranscriptionError.initializationFailed(error)
+                }
+            }
+            
+            // タイムアウトチェック
+            if !isInitialized {
+                print("⏰ WhisperKit initialization timeout after \(totalWaitTime)s")
+                throw WhisperKitTranscriptionError.initializationTimeout
+            }
+            
+            print("✅ WhisperKit initialization completed after \(totalWaitTime)s wait")
+        }
         
         // 初期化チェック
         guard isInitialized, let whisperKit = whisperKit else {
@@ -184,14 +267,21 @@ class WhisperKitTranscriptionService: ObservableObject {
                 // 最初の結果のテキストを使用
                 let mainText = transcription.first?.text ?? ""
                 
-                // 空の場合、全セグメントのテキストを結合
+                // セグメント単位で改行を入れてテキストを整形
                 if mainText.isEmpty {
                     print("🔧 Main text is empty, trying to merge segments...")
-                    let allSegmentTexts = transcription.flatMap { $0.segments }.map { $0.text }
-                    resultText = allSegmentTexts.joined(separator: " ")
-                    print("🔧 Merged segment text: '\(resultText)'")
+                    let allSegmentTexts = transcription.flatMap { $0.segments }.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    resultText = allSegmentTexts.joined(separator: "\n")
+                    print("🔧 Merged segment text with line breaks: '\(resultText)'")
                 } else {
-                    resultText = mainText
+                    // メインテキストがある場合もセグメント単位で改行を追加
+                    if let firstResult = transcription.first, !firstResult.segments.isEmpty {
+                        let segmentTexts = firstResult.segments.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        resultText = segmentTexts.joined(separator: "\n")
+                        print("🔧 Formatted text with segment breaks: '\(resultText)'")
+                    } else {
+                        resultText = mainText
+                    }
                 }
             } else {
                 print("❌ No transcription results returned")
@@ -276,6 +366,11 @@ class WhisperKitTranscriptionService: ObservableObject {
         }
         
         await initializeWhisperKit()
+        
+        // モデル変更成功時にダウンロード済みとしてマーク
+        await MainActor.run {
+            self.downloadedModels.insert(model)
+        }
     }
 }
 
@@ -285,6 +380,7 @@ class WhisperKitTranscriptionService: ObservableObject {
 enum WhisperKitTranscriptionError: LocalizedError {
     case notInitialized
     case initializationFailed(Error)
+    case initializationTimeout
     case fileNotFound
     case transcriptionFailed(Error)
     case modelNotAvailable
@@ -295,6 +391,8 @@ enum WhisperKitTranscriptionError: LocalizedError {
             return "WhisperKitが初期化されていません"
         case .initializationFailed(let error):
             return "WhisperKit初期化に失敗しました: \(error.localizedDescription)"
+        case .initializationTimeout:
+            return "WhisperKit初期化がタイムアウトしました（モデルダウンロード中の可能性があります）"
         case .fileNotFound:
             return "音声ファイルが見つかりません"
         case .transcriptionFailed(let error):

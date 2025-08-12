@@ -23,9 +23,9 @@ targets:
       - package: WhisperKit
         product: WhisperKit
     settings:
-      PRODUCT_BUNDLE_IDENTIFIER: com.instantrec.app
+      PRODUCT_BUNDLE_IDENTIFIER: com.tkysyskwdev.instantrec
       CODE_SIGN_STYLE: Automatic
-      DEVELOPMENT_TEAM: ""
+      DEVELOPMENT_TEAM: "37F6GJBJ4T"
       "CODE_SIGN_IDENTITY[sdk=iphoneos*]": "iPhone Developer"
       "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": ""
       PROVISIONING_PROFILE_SPECIFIER: ""

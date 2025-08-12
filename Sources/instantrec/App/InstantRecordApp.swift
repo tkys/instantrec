@@ -1,7 +1,9 @@
 
 import SwiftUI
 import SwiftData
+#if canImport(GoogleSignIn)
 import GoogleSignIn
+#endif
 
 @main
 struct InstantRecApp: App {
@@ -46,8 +48,6 @@ struct InstantRecApp: App {
     }()
 
     init() {
-        _recordingViewModel = StateObject(wrappedValue: RecordingViewModel())
-        
         // Google Sign-In設定
         configureGoogleSignIn()
         
@@ -56,6 +56,7 @@ struct InstantRecApp: App {
     
     /// Google Sign-In設定を初期化
     private func configureGoogleSignIn() {
+        #if canImport(GoogleSignIn)
         guard let path = Bundle.main.path(forResource: "GoogleSignInConfiguration", ofType: "plist"),
               let plist = NSDictionary(contentsOfFile: path),
               let clientId = plist["CLIENT_ID"] as? String else {
@@ -67,30 +68,56 @@ struct InstantRecApp: App {
         
         GIDSignIn.sharedInstance.configuration = configuration
         print("✅ Google Sign-In: Configuration completed")
+        #else
+        print("⚠️ Google Sign-In: Not available")
+        #endif
     }
 
     var body: some Scene {
         WindowGroup {
             ZStack {
-                RecordingView()
-                    .environmentObject(recordingViewModel)
-                    .environment(\.modelContext, sharedModelContainer.mainContext)
-                    .onAppear {
-                        let onAppearTime = CFAbsoluteTimeGetCurrent() - appLaunchTime
-                        print("🖥️ UI appeared at: \(String(format: "%.1f", onAppearTime * 1000))ms")
-                        
-                        // 初回起動判定
-                        if recordingSettings.isFirstLaunch {
-                            print("👋 First launch detected, showing mode selection")
-                            showingModeSelection = true
-                        } else {
-                            print("🔄 Returning user, using saved settings: \(recordingSettings.recordingStartMode.displayName)")
-                            // 既存ユーザー向けの通常セットアップ
-                            DispatchQueue.main.async {
-                                recordingViewModel.setup(modelContext: sharedModelContainer.mainContext, launchTime: appLaunchTime)
-                            }
+                TabView {
+                    // Recording Tab
+                    RecordingView()
+                        .environmentObject(recordingViewModel)
+                        .environment(\.modelContext, sharedModelContainer.mainContext)
+                        .tabItem {
+                            Image(systemName: "mic")
+                            Text("Record")
+                        }
+                    
+                    // Recordings List Tab  
+                    RecordingsListView()
+                        .environmentObject(recordingViewModel)
+                        .environment(\.modelContext, sharedModelContainer.mainContext)
+                        .tabItem {
+                            Image(systemName: "list.bullet")
+                            Text("List")
+                        }
+                    
+                    // Settings Tab
+                    SettingsView()
+                        .tabItem {
+                            Image(systemName: "gear")
+                            Text("Settings")
+                        }
+                }
+                .onAppear {
+                    let onAppearTime = CFAbsoluteTimeGetCurrent() - appLaunchTime
+                    print("🖥️ UI appeared at: \(String(format: "%.1f", onAppearTime * 1000))ms")
+                    
+                    // 初回起動判定
+                    if recordingSettings.isFirstLaunch {
+                        print("👋 First launch detected, showing mode selection")
+                        showingModeSelection = true
+                    } else {
+                        print("🔄 Returning user, using saved settings: \(recordingSettings.recordingStartMode.displayName)")
+                        // 既存ユーザー向けの通常セットアップ
+                        DispatchQueue.main.async {
+                            recordingViewModel.setup(modelContext: sharedModelContainer.mainContext, launchTime: appLaunchTime)
                         }
                     }
+                }
                 
                 // 初回起動時の方式選択画面
                 if showingModeSelection {
@@ -105,7 +132,9 @@ struct InstantRecApp: App {
             }
             .onOpenURL { url in
                 // Google Sign-In URLスキーム処理
+                #if canImport(GoogleSignIn)
                 GIDSignIn.sharedInstance.handle(url)
+                #endif
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in
                     // パフォーマンス最適化: 初回起動時はスキップ

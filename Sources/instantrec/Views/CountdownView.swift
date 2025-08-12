@@ -21,50 +21,57 @@ struct CountdownView: View {
             Color(UIColor.systemBackground).ignoresSafeArea()
             
             VStack(spacing: 30) {
-                // 上部のカウントダウン状態表示
+                // 統一されたヘッダー
                 VStack(spacing: 8) {
                     HStack {
                         Circle()
-                            .fill(Color.orange)
+                            .fill(Color.blue)
                             .frame(width: 12, height: 12)
                             .opacity(0.8)
+                            .scaleEffect(1.1)
+                            .animation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: true)
                         
-                        Text("録音開始まで")
-                            .foregroundColor(.orange)
+                        Text("Starting in...")
+                            .foregroundColor(.blue)
                             .font(.title2)
                             .fontWeight(.bold)
                     }
                 }
                 
-                // 中央のカウントダウンアイコン
+                // 統一されたアイコンセクション
                 VStack(spacing: 15) {
                     Image(systemName: "timer")
                         .font(.system(size: 60))
-                        .foregroundColor(.orange)
+                        .foregroundColor(.blue)
                     
-                    Text("準備してください")
+                    Text("Get ready to record")
                         .foregroundColor(Color(UIColor.secondaryLabel))
                         .font(.subheadline)
                 }
                 
-                // カウントダウン時間（シンプルな数字のみ）
+                // カウントダウン時間
                 Text("\(remainingTime)")
                     .font(.system(.largeTitle, design: .monospaced, weight: .light))
                     .foregroundColor(Color(UIColor.label))
                     .scaleEffect(scale)
                     .animation(.easeInOut(duration: 0.1), value: scale)
                 
-                // キャンセルボタン
-                Button("キャンセル") {
+                // 統一されたキャンセルボタン
+                Button(action: {
                     stopTimer()
                     onCancel()
+                }) {
+                    HStack {
+                        Image(systemName: "xmark")
+                        Text("Cancel")
+                    }
+                    .font(.title)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .frame(width: 200, height: 80)
+                    .background(Color.red)
+                    .cornerRadius(40)
                 }
-                .font(.title)
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
-                .frame(width: 200, height: 80)
-                .background(Color.red)
-                .cornerRadius(40)
             }
         }
         .onAppear {

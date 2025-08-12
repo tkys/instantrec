@@ -1,293 +1,539 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @StateObject private var settings = RecordingSettings.shared
-    @StateObject private var googleDriveService = GoogleDriveService.shared
-    @StateObject private var uploadQueue = UploadQueue.shared
-    @Environment(\.dismiss) private var dismiss
-    @State private var showingModeChangeAlert = false
-    @State private var pendingMode: RecordingStartMode?
-    @State private var showingSignInAlert = false
-    @State private var showingSignOutAlert = false
+    @StateObject private var recordingSettings = RecordingSettings.shared
+    @StateObject private var driveService = GoogleDriveService.shared
+    @StateObject private var whisperService = WhisperKitTranscriptionService.shared
+    @State private var showingRecordingModeSelection = false
+    @State private var showingStartModeSelection = false
+    @State private var showingCountdownSelection = false
+    @State private var showingAIModelSelection = false
+    @State private var autoTranscriptionEnabled: Bool
+    @State private var autoBackupEnabled: Bool
+    
+    init() {
+        _autoTranscriptionEnabled = State(initialValue: RecordingSettings.shared.autoTranscriptionEnabled)
+        _autoBackupEnabled = State(initialValue: RecordingSettings.shared.autoBackupEnabled)
+    }
     
     var body: some View {
         NavigationView {
             Form {
-                // 録音方式設定セクション
-                Section(header: Text("録音開始方式")) {
-                    ForEach(RecordingStartMode.allCases) { mode in
-                        Button(action: {
-                            if mode == .instantStart && !settings.userConsentForInstantRecording {
-                                pendingMode = mode
-                                showingModeChangeAlert = true
-                            } else {
-                                settings.recordingStartMode = mode
-                            }
-                        }) {
-                            HStack {
-                                Image(systemName: mode.icon)
-                                    .foregroundColor(.blue)
-                                    .frame(width: 24)
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(mode.displayName)
-                                        .foregroundColor(.primary)
-                                        .fontWeight(.medium)
-                                    
-                                    Text(mode.description)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.leading)
-                                }
-                                
-                                Spacer()
-                                
-                                if settings.recordingStartMode == mode {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(.blue)
-                                }
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
+                // Recording Behavior Section
+                Section {
+                    SettingRow(
+                        title: "Start Mode",
+                        value: recordingSettings.recordingStartMode.displayName,
+                        hasDisclosure: true,
+                        action: { showingStartModeSelection = true }
+                    )
+                    
+                    SettingRow(
+                        title: "Recording Mode", 
+                        value: "Balance",
+                        hasDisclosure: true,
+                        action: { showingRecordingModeSelection = true }
+                    )
+                    
+                    SettingRow(
+                        title: "Countdown Time",
+                        value: recordingSettings.countdownDuration.displayName,
+                        hasDisclosure: recordingSettings.recordingStartMode == .countdown,
+                        isEnabled: recordingSettings.recordingStartMode == .countdown,
+                        action: recordingSettings.recordingStartMode == .countdown ? {
+                            showingCountdownSelection = true
+                        } : nil
+                    )
+                } header: {
+                    Text("Recording Behavior")
                 }
                 
-                // カウントダウン設定（カウントダウン方式選択時のみ表示）
-                if settings.recordingStartMode == .countdown {
-                    Section(header: Text("カウントダウン時間")) {
-                        Picker("カウントダウン時間", selection: $settings.countdownDuration) {
-                            ForEach(CountdownDuration.allCases) { duration in
-                                Text(duration.displayName)
-                                    .tag(duration)
-                            }
-                        }
-                        .pickerStyle(SegmentedPickerStyle())
-                    }
-                }
-                
-                // Google Drive連携設定
-                Section(header: Text("Google Drive連携")) {
-                    if googleDriveService.isAuthenticated {
-                        // サインイン済み状態
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("接続済み")
-                                    .foregroundColor(.primary)
-                                    .fontWeight(.medium)
-                                
-                                if let email = googleDriveService.currentUserEmail {
-                                    Text("連携中: \(email)")
-                                        .font(.caption)
-                                        .foregroundColor(.green)
-                                        .fontWeight(.medium)
-                                }
-                                
-                                if let name = googleDriveService.currentUserName {
-                                    Text("アカウント: \(name)")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                Text("録音ファイルが自動でGoogle Driveに保存されます")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                        }
-                        
-                        // アップロードキュー状況
-                        if uploadQueue.queueCount > 0 || uploadQueue.activeUploads > 0 {
-                            HStack {
-                                Image(systemName: "icloud.and.arrow.up")
-                                    .foregroundColor(.blue)
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("アップロード状況")
-                                        .foregroundColor(.primary)
-                                        .fontWeight(.medium)
-                                    
-                                    if uploadQueue.activeUploads > 0 {
-                                        Text("アップロード中: \(uploadQueue.activeUploads)件")
-                                            .font(.caption)
-                                            .foregroundColor(.blue)
-                                    }
-                                    
-                                    if uploadQueue.queueCount > 0 {
-                                        Text("待機中: \(uploadQueue.queueCount)件")
-                                            .font(.caption)
-                                            .foregroundColor(.orange)
-                                    }
-                                }
-                                
-                                Spacer()
-                            }
-                        }
-                        
-                        // サインアウトボタン
-                        Button(action: {
-                            showingSignOutAlert = true
-                        }) {
-                            HStack {
-                                Image(systemName: "person.crop.circle.badge.minus")
-                                    .foregroundColor(.red)
-                                
-                                Text("サインアウト")
-                                    .foregroundColor(.red)
-                            }
-                        }
-                        
-                    } else {
-                        // 未サインイン状態
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Image(systemName: "icloud.slash")
-                                    .foregroundColor(.gray)
-                                
-                                Text("未接続")
-                                    .foregroundColor(.primary)
-                                    .fontWeight(.medium)
-                                
-                                Spacer()
-                            }
-                            
-                            Text("Google Driveに接続すると、録音ファイルが自動でクラウドに保存され、どのデバイスからでもアクセスできます。")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.leading)
-                        }
-                        
-                        // サインインボタン
-                        Button(action: {
-                            showingSignInAlert = true
-                        }) {
-                            HStack {
-                                Image(systemName: "person.crop.circle.badge.plus")
-                                    .foregroundColor(.blue)
-                                
-                                Text("Google Driveに接続")
-                                    .foregroundColor(.blue)
-                                    .fontWeight(.medium)
-                                
-                                Spacer()
-                            }
-                        }
-                    }
-                }
-                
-                // デバッグセクション
-                Section(header: Text("🔬 デバッグ")) {
-                    NavigationLink {
-                        TranscriptionDebugView()
-                    } label: {
-                        HStack {
-                            Image(systemName: "waveform.and.mic")
-                                .foregroundColor(.purple)
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("文字起こしテスト")
-                                    .foregroundColor(.primary)
-                                    .fontWeight(.medium)
-                                
-                                Text("Apple Speech Framework POC")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                        }
-                    }
-                }
-                
-                // その他設定
-                Section(header: Text("その他")) {
-                    HStack {
-                        Image(systemName: "info.circle")
-                            .foregroundColor(.blue)
-                        
-                        Text("バージョン")
-                        
-                        Spacer()
-                        
-                        Text("1.0.0")
-                            .foregroundColor(.secondary)
+                // Audio & AI Section
+                Section {
+                    SettingRow(
+                        title: "Noise Reduction",
+                        value: "Medium",
+                        hasDisclosure: true,
+                        action: { /* Navigate to noise reduction selection */ }
+                    )
+                    
+                    ToggleSettingRow(
+                        title: "Auto Transcription",
+                        isOn: $autoTranscriptionEnabled
+                    )
+                    .onChange(of: autoTranscriptionEnabled) { _, newValue in
+                        recordingSettings.autoTranscriptionEnabled = newValue
                     }
                     
-                    Button(action: {
-                        // リセット機能（デバッグ用）
-                        settings.recordingStartMode = .manual
-                        settings.userConsentForInstantRecording = false
-                        settings.countdownDuration = .three
-                        settings.isFirstLaunch = true
-                    }) {
-                        HStack {
-                            Image(systemName: "arrow.clockwise")
-                                .foregroundColor(.orange)
-                            
-                            Text("設定をリセット")
-                                .foregroundColor(.primary)
-                        }
+                    if autoTranscriptionEnabled {
+                        SettingRow(
+                            title: "AI Model",
+                            value: whisperService.selectedModel.displayName,
+                            hasDisclosure: true,
+                            action: { showingAIModelSelection = true }
+                        )
                     }
+                } header: {
+                    Text("Audio & AI")
                 }
                 
-                // Apple審査対策の説明
-                Section(footer: Text("録音開始方式は、Appleストアポリシーに準拠するため選択可能になっています。いつでも変更できます。")) {
-                    EmptyView()
-                }
-            }
-            .navigationTitle("設定")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("完了") {
-                        dismiss()
+                // Cloud & Sync Section  
+                Section {
+                    GoogleDriveSettingRow(
+                        driveService: driveService,
+                        autoBackupEnabled: $autoBackupEnabled
+                    )
+                    
+                    if driveService.isSignedIn {
+                        ToggleSettingRow(
+                            title: "Automatic Backup",
+                            isOn: $autoBackupEnabled
+                        )
                     }
+                } header: {
+                    Text("Cloud & Sync")
                 }
             }
-        }
-        .alert("即録音方式の確認", isPresented: $showingModeChangeAlert) {
-            Button("キャンセル", role: .cancel) { 
-                pendingMode = nil
+            .navigationTitle("Settings")
+            .sheet(isPresented: $showingRecordingModeSelection) {
+                RecordingModeSelectionSheet()
             }
-            Button("同意して変更") {
-                if let mode = pendingMode {
-                    settings.userConsentForInstantRecording = true
-                    settings.recordingStartMode = mode
-                    pendingMode = nil
-                }
+            .sheet(isPresented: $showingStartModeSelection) {
+                StartModeSelectionSheet()
             }
-        } message: {
-            Text("即録音方式では、アプリを開くと同時に録音が開始されます。この動作に同意しますか？")
-        }
-        .alert("Google Driveに接続", isPresented: $showingSignInAlert) {
-            Button("キャンセル", role: .cancel) { }
-            Button("接続する") {
-                Task {
-                    do {
-                        try await googleDriveService.signIn()
-                    } catch {
-                        print("❌ Google Drive sign-in failed: \(error)")
-                    }
-                }
+            .sheet(isPresented: $showingCountdownSelection) {
+                CountdownSelectionSheet()
             }
-        } message: {
-            Text("Google Driveに接続して、録音ファイルを自動でクラウドに保存しますか？")
-        }
-        .alert("Google Driveから切断", isPresented: $showingSignOutAlert) {
-            Button("キャンセル", role: .cancel) { }
-            Button("切断する", role: .destructive) {
-                googleDriveService.signOut()
+            .sheet(isPresented: $showingAIModelSelection) {
+                AIModelSelectionSheet()
             }
-        } message: {
-            Text("Google Driveから切断しますか？既にアップロード済みのファイルはGoogle Drive上に残ります。")
+            .onAppear {
+                // Viewが表示される際にWhisperServiceの状態を確認
+                print("🔍 Settings appeared. Current model: \(whisperService.selectedModel.displayName)")
+            }
         }
     }
 }
 
-#Preview {
-    SettingsView()
+struct StartModeSelectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var recordingSettings = RecordingSettings.shared
+    @State private var selectedMode: RecordingStartMode
+    
+    init() {
+        _selectedMode = State(initialValue: RecordingSettings.shared.recordingStartMode)
+    }
+    
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(RecordingStartMode.allCases) { mode in
+                    Button(action: {
+                        selectedMode = mode
+                    }) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(mode.displayName)
+                                    .foregroundColor(.primary)
+                                    .font(.headline)
+                                Text(mode.description)
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
+                                    .lineLimit(2)
+                            }
+                            Spacer()
+                            if selectedMode == mode {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Start Mode")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        let wasChanged = recordingSettings.recordingStartMode != selectedMode
+                        recordingSettings.recordingStartMode = selectedMode
+                        
+                        if wasChanged {
+                            print("🔧 StartMode changed to: \(selectedMode.displayName)")
+                            // RecordingViewの onChange が自動的に反応する
+                        }
+                        
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+}
+
+struct CountdownSelectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var recordingSettings = RecordingSettings.shared
+    @State private var selectedDuration: CountdownDuration
+    
+    init() {
+        _selectedDuration = State(initialValue: RecordingSettings.shared.countdownDuration)
+    }
+    
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(CountdownDuration.allCases) { duration in
+                    Button(action: {
+                        selectedDuration = duration
+                    }) {
+                        HStack {
+                            Text(duration.displayName)
+                                .foregroundColor(.primary)
+                                .font(.headline)
+                            
+                            Spacer()
+                            
+                            if selectedDuration == duration {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Countdown Time")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        recordingSettings.countdownDuration = selectedDuration
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+}
+
+struct AIModelSelectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var whisperService = WhisperKitTranscriptionService.shared
+    @State private var selectedModel: WhisperKitModel
+    @State private var isChangingModel = false
+    
+    init() {
+        _selectedModel = State(initialValue: WhisperKitTranscriptionService.shared.selectedModel)
+    }
+    
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(WhisperKitModel.allCases) { model in
+                    Button(action: {
+                        selectedModel = model
+                    }) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(model.displayName)
+                                        .foregroundColor(.primary)
+                                        .font(.headline)
+                                    Text(model.description)
+                                        .foregroundColor(.secondary)
+                                        .font(.caption)
+                                        .lineLimit(2)
+                                }
+                                Spacer()
+                                if selectedModel == model {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                            
+                            // モデルの詳細情報
+                            HStack(spacing: 12) {
+                                HStack(spacing: 4) {
+                                    getDownloadStatusIcon(model)
+                                    Text("Size: \(getModelSize(model))")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Label("Speed: \(getSpeedRating(model))", systemImage: "speedometer")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .disabled(isChangingModel)
+                }
+            }
+            .navigationTitle("AI Model")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .disabled(isChangingModel)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if isChangingModel {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else {
+                        Button("Done") {
+                            changeModel()
+                        }
+                        .fontWeight(.semibold)
+                        .disabled(selectedModel == whisperService.selectedModel && !isChangingModel)
+                    }
+                }
+            }
+            .onAppear {
+                // シート表示時に現在のモデル状態を確認
+                selectedModel = whisperService.selectedModel
+                isChangingModel = false
+                print("🔍 AI Model sheet appeared. Selected: \(selectedModel.displayName), Service: \(whisperService.selectedModel.displayName)")
+            }
+        }
+    }
+    
+    private func getModelSize(_ model: WhisperKitModel) -> String {
+        switch model {
+        case .tiny: return "43MB"
+        case .base: return "145MB"
+        case .small: return "~500MB"
+        case .medium: return "~1GB"
+        case .large: return "1.5GB"
+        }
+    }
+    
+    private func getSpeedRating(_ model: WhisperKitModel) -> String {
+        switch model {
+        case .tiny: return "★★★★★"
+        case .base: return "★★★★☆"
+        case .small: return "★★★☆☆"
+        case .medium: return "★★☆☆☆"
+        case .large: return "★☆☆☆☆"
+        }
+    }
+    
+    private func getDownloadStatusIcon(_ model: WhisperKitModel) -> some View {
+        let isDownloaded = whisperService.downloadedModels.contains(model)
+        let isCurrentlyChanging = isChangingModel && selectedModel == model
+        
+        return Group {
+            if isCurrentlyChanging {
+                ProgressView()
+                    .scaleEffect(0.7)
+            } else if isDownloaded {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+            } else {
+                Image(systemName: "arrow.down.circle")
+                    .foregroundColor(.blue)
+            }
+        }
+        .font(.caption2)
+    }
+    
+    private func changeModel() {
+        guard selectedModel != whisperService.selectedModel else {
+            dismiss()
+            return
+        }
+        
+        isChangingModel = true
+        
+        Task {
+            await whisperService.changeModel(to: selectedModel)
+            await MainActor.run {
+                // モデル変更が完了したらUI状態をリセット
+                isChangingModel = false
+                // WhisperServiceの状態更新を確認
+                print("✅ Model change completed. Current model: \(whisperService.selectedModel.displayName)")
+                dismiss()
+            }
+        }
+    }
+}
+
+struct RecordingModeSelectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    let recordingModes = [
+        ("Balance", "A versatile mode for all situations"),
+        ("Conversation", "Makes human voices clearer"),
+        ("Narration", "High quality with minimal noise"),
+        ("Ambient", "Records all sounds faithfully"),
+        ("Meeting", "Optimized for multiple speakers")
+    ]
+    
+    @State private var selectedMode = "Balance"
+    
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(recordingModes, id: \.0) { mode in
+                    Button(action: {
+                        selectedMode = mode.0
+                    }) {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(mode.0)
+                                    .foregroundColor(.primary)
+                                    .font(.headline)
+                                Text(mode.1)
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
+                            }
+                            Spacer()
+                            if selectedMode == mode.0 {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Recording Mode")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        // Save selection here
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Setting Components
+
+struct SettingRow: View {
+    let title: String
+    let value: String?
+    let hasDisclosure: Bool
+    let isEnabled: Bool
+    let action: (() -> Void)?
+    
+    init(title: String, value: String? = nil, hasDisclosure: Bool = false, isEnabled: Bool = true, action: (() -> Void)? = nil) {
+        self.title = title
+        self.value = value
+        self.hasDisclosure = hasDisclosure
+        self.isEnabled = isEnabled
+        self.action = action
+    }
+    
+    var body: some View {
+        Button(action: action ?? {}) {
+            HStack {
+                Text(title)
+                    .foregroundColor(isEnabled ? .primary : .secondary)
+                
+                Spacer()
+                
+                if let value = value {
+                    Text(value)
+                        .foregroundColor(.secondary)
+                }
+                
+                if hasDisclosure {
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .disabled(!isEnabled || action == nil)
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct ToggleSettingRow: View {
+    let title: String
+    @Binding var isOn: Bool
+    
+    var body: some View {
+        HStack {
+            Text(title)
+            
+            Spacer()
+            
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+        }
+    }
+}
+
+struct GoogleDriveSettingRow: View {
+    @ObservedObject var driveService: GoogleDriveService
+    @Binding var autoBackupEnabled: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("Google Drive")
+                    if let email = driveService.signedInUserEmail {
+                        Text(email)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                Button(driveService.isSignedIn ? "Sign Out" : "Sign In") {
+                    handleGoogleDriveAuth()
+                }
+                .foregroundColor(.blue)
+            }
+        }
+    }
+    
+    private func handleGoogleDriveAuth() {
+        if driveService.isSignedIn {
+            driveService.signOut()
+            autoBackupEnabled = false
+        } else {
+            Task {
+                do {
+                    try await driveService.signIn()
+                    await MainActor.run {
+                        autoBackupEnabled = true
+                    }
+                } catch {
+                    print("Sign in failed: \(error)")
+                }
+            }
+        }
+    }
 }

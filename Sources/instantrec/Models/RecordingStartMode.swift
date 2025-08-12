@@ -99,6 +99,18 @@ class RecordingSettings: ObservableObject {
         }
     }
     
+    @Published var autoTranscriptionEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(autoTranscriptionEnabled, forKey: "autoTranscriptionEnabled")
+        }
+    }
+    
+    @Published var autoBackupEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(autoBackupEnabled, forKey: "autoBackupEnabled")
+        }
+    }
+    
     private init() {
         // UserDefaultsから設定を復元
         let savedMode = UserDefaults.standard.string(forKey: "selectedRecordingMode") ?? RecordingStartMode.manual.rawValue
@@ -108,6 +120,8 @@ class RecordingSettings: ObservableObject {
         self.countdownDuration = CountdownDuration(rawValue: savedDuration) ?? .three
         
         self.userConsentForInstantRecording = UserDefaults.standard.bool(forKey: "userConsentForInstantRecording")
+        self.autoTranscriptionEnabled = UserDefaults.standard.bool(forKey: "autoTranscriptionEnabled")
+        self.autoBackupEnabled = UserDefaults.standard.bool(forKey: "autoBackupEnabled")
         
         print("🔧 RecordingSettings initialized: mode=\(recordingStartMode.displayName), consent=\(userConsentForInstantRecording)")
     }
@@ -115,5 +129,11 @@ class RecordingSettings: ObservableObject {
     /// Apple審査対策: 即録音方式が有効かどうかの判定
     func isInstantRecordingEnabled() -> Bool {
         return recordingStartMode == .instantStart && userConsentForInstantRecording
+    }
+    
+    /// 設定を保存
+    func save() {
+        // すべての設定が自動で保存されるが、明示的に保存を要求する場合のメソッド
+        UserDefaults.standard.synchronize()
     }
 }
