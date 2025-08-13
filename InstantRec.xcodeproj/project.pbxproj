@@ -34,15 +34,16 @@
 		7674DEF21C80EFCF99BE93C9 /* SettingsViewSimple.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC22686904315D79252C6CA /* SettingsViewSimple.swift */; };
 		7794600D00AD890BDA48DBF9 /* InstantRecordApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E53F7381FFBA02293162E7AA /* InstantRecordApp.swift */; };
 		7BF5A9463C20C796FFD237E9 /* GoogleDriveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8624E8406F6641F8C21273ED /* GoogleDriveService.swift */; };
-		7C4681ED4D92165FB272726E /* Pods_InstantRec.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5EA387E978F14FBDE4C06B7E /* Pods_InstantRec.framework */; };
 		842A65D49587C8CE9A738E22 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = BB9D8E16DC77F7BCF0CCF16C /* Localizable.strings */; };
 		88108C34BDF4EA7D1C4E2CBC /* WhisperKitTranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BFFC2FD0F2B14FE72FEC2D3 /* WhisperKitTranscriptionService.swift */; };
 		89CB27433334E4716A13CA16 /* PlaybackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0146FAC45909519B082975EB /* PlaybackManager.swift */; };
 		91528FBD3BE1C2246CAAB455 /* CloudSyncStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A19052C51E04FD7EBE71381 /* CloudSyncStatus.swift */; };
 		980B01077BBBF9CBC846D73F /* RecordingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E5666614BE7A0F27C684F3 /* RecordingViewModel.swift */; };
+		9AD7D47F7BC91B34EF898089 /* Pods_InstantRec.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AE284AB1E1DBE361520EDA6C /* Pods_InstantRec.framework */; };
 		9B3CFCF309074016D7E30730 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06DA7B009B578E22C90D771 /* ContentView.swift */; };
 		9FEE964324407C6A1E951693 /* SegmentedRecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F2AB33A3A57CCC54097F1A1 /* SegmentedRecordingView.swift */; };
 		B4043093D405EE6A1274E035 /* RecordingModeSelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614F942BC6F3402EDA493E81 /* RecordingModeSelectionView.swift */; };
+		C0CD17461EB4712D128BEA75 /* ListUIComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B374FC6483B5EA41D7192C67 /* ListUIComponents.swift */; };
 		C8DC144B631E9997C30A909E /* AudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 254979AE1C5C66FE6464CE01 /* AudioService.swift */; };
 		E6FBCC65843C72747BBA089B /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7B7F653CF8F5875BA701BC /* TranscriptionService.swift */; };
 		FA6C0D45D3DDF6B4544A4B25 /* GoogleSignInConfiguration.plist in Resources */ = {isa = PBXBuildFile; fileRef = E211716221757AAFBA60C126 /* GoogleSignInConfiguration.plist */; };
@@ -65,7 +66,6 @@
 		4D2DEC80762BD3A6301A54E9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4E2D8FA6FA79B8B3C4A1FD0C /* CountdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownView.swift; sourceTree = "<group>"; };
 		5BFFC2FD0F2B14FE72FEC2D3 /* WhisperKitTranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitTranscriptionService.swift; sourceTree = "<group>"; };
-		5EA387E978F14FBDE4C06B7E /* Pods_InstantRec.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_InstantRec.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		614F942BC6F3402EDA493E81 /* RecordingModeSelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingModeSelectionView.swift; sourceTree = "<group>"; };
 		6CFBB77222C80A6616F413AA /* SettingsView.swift.backup */ = {isa = PBXFileReference; lastKnownFileType = text; path = SettingsView.swift.backup; sourceTree = "<group>"; };
 		78E001EF19DE89379C5FEBB1 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
@@ -75,7 +75,10 @@
 		94D67409375080B9FFBC99F5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		9DFA5019F57D1BD39A57F2C7 /* TimeInterval+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TimeInterval+Extensions.swift"; sourceTree = "<group>"; };
 		AA53F8BDFE9103A0F2AB996F /* RecordingDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingDetailView.swift; sourceTree = "<group>"; };
+		AE284AB1E1DBE361520EDA6C /* Pods_InstantRec.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_InstantRec.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		B374FC6483B5EA41D7192C67 /* ListUIComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListUIComponents.swift; sourceTree = "<group>"; };
 		B9E5666614BE7A0F27C684F3 /* RecordingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingViewModel.swift; sourceTree = "<group>"; };
+		BAFE92144756730FA058BD47 /* Pods-InstantRec.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-InstantRec.release.xcconfig"; path = "Target Support Files/Pods-InstantRec/Pods-InstantRec.release.xcconfig"; sourceTree = "<group>"; };
 		BB9D8E16DC77F7BCF0CCF16C /* Localizable.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; path = Localizable.strings; sourceTree = "<group>"; };
 		C3AD54CBEEA1D5F93D117CA6 /* SegmentedRecordingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedRecordingService.swift; sourceTree = "<group>"; };
 		C6CD3D6E4273595F00EFBA28 /* AppStateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateManager.swift; sourceTree = "<group>"; };
@@ -83,9 +86,8 @@
 		CB8F78F31BE67988A2571F1B /* RecordingView.swift.backup */ = {isa = PBXFileReference; lastKnownFileType = text; path = RecordingView.swift.backup; sourceTree = "<group>"; };
 		CCAF415A289D03120D67E00F /* PlaybackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackView.swift; sourceTree = "<group>"; };
 		D22BE5D0A61E8839C5E26F0A /* InstantRec.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InstantRec.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		D51D301B474D1249B000626D /* Pods-InstantRec.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-InstantRec.release.xcconfig"; path = "Target Support Files/Pods-InstantRec/Pods-InstantRec.release.xcconfig"; sourceTree = "<group>"; };
+		D960708426CD6295406BACCD /* Pods-InstantRec.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-InstantRec.debug.xcconfig"; path = "Target Support Files/Pods-InstantRec/Pods-InstantRec.debug.xcconfig"; sourceTree = "<group>"; };
 		DC5DE46AF6C1BD647516F828 /* Recording.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recording.swift; sourceTree = "<group>"; };
-		DE66F715FFAA6E1A06DA1D9B /* Pods-InstantRec.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-InstantRec.debug.xcconfig"; path = "Target Support Files/Pods-InstantRec/Pods-InstantRec.debug.xcconfig"; sourceTree = "<group>"; };
 		E211716221757AAFBA60C126 /* GoogleSignInConfiguration.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = GoogleSignInConfiguration.plist; sourceTree = "<group>"; };
 		E3A3D49BE268239F4FDD6E91 /* UploadQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadQueue.swift; sourceTree = "<group>"; };
 		E53F7381FFBA02293162E7AA /* InstantRecordApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstantRecordApp.swift; sourceTree = "<group>"; };
@@ -99,7 +101,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0EB1FA1DC7F609393B6D05E1 /* WhisperKit in Frameworks */,
-				7C4681ED4D92165FB272726E /* Pods_InstantRec.framework in Frameworks */,
+				9AD7D47F7BC91B34EF898089 /* Pods_InstantRec.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -126,17 +128,9 @@
 			children = (
 				BEAEFC6B1CCBAC34555C26D2 /* Sources */,
 				8FC98CD04654CC4F954EB572 /* Products */,
-				D6ED8206D2BB7174549A803D /* Pods */,
-				302E496FD36CE7BEC4B2B25F /* Frameworks */,
+				8477528706477B854BC39EC1 /* Pods */,
+				94BD0C15E7E40AD153FD8157 /* Frameworks */,
 			);
-			sourceTree = "<group>";
-		};
-		302E496FD36CE7BEC4B2B25F /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				5EA387E978F14FBDE4C06B7E /* Pods_InstantRec.framework */,
-			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		3447CBA9D9743933812D9836 /* App */ = {
@@ -167,12 +161,29 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
+		8477528706477B854BC39EC1 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				D960708426CD6295406BACCD /* Pods-InstantRec.debug.xcconfig */,
+				BAFE92144756730FA058BD47 /* Pods-InstantRec.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
 		8FC98CD04654CC4F954EB572 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				D22BE5D0A61E8839C5E26F0A /* InstantRec.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		94BD0C15E7E40AD153FD8157 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				AE284AB1E1DBE361520EDA6C /* Pods_InstantRec.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		9BC65B14DD3E792BB73661C0 /* Sources */ = {
@@ -197,15 +208,6 @@
 				9BC65B14DD3E792BB73661C0 /* Sources */,
 			);
 			path = Sources;
-			sourceTree = "<group>";
-		};
-		D6ED8206D2BB7174549A803D /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				DE66F715FFAA6E1A06DA1D9B /* Pods-InstantRec.debug.xcconfig */,
-				D51D301B474D1249B000626D /* Pods-InstantRec.release.xcconfig */,
-			);
-			path = Pods;
 			sourceTree = "<group>";
 		};
 		ED34280D594F8A00455598AA /* ViewModels */ = {
@@ -234,6 +236,7 @@
 				1618286DC892C5D188A6864B /* AudioSettingsView.swift */,
 				F06DA7B009B578E22C90D771 /* ContentView.swift */,
 				4E2D8FA6FA79B8B3C4A1FD0C /* CountdownView.swift */,
+				B374FC6483B5EA41D7192C67 /* ListUIComponents.swift */,
 				CCAF415A289D03120D67E00F /* PlaybackView.swift */,
 				7ADF695956C2F7D8F1C632DB /* RecordingCardView.swift */,
 				AA53F8BDFE9103A0F2AB996F /* RecordingDetailView.swift */,
@@ -258,11 +261,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = BC2E7186A3AF22779950AA69 /* Build configuration list for PBXNativeTarget "InstantRec" */;
 			buildPhases = (
-				2104853AFF5C6E2A1D1CF6EC /* [CP] Check Pods Manifest.lock */,
+				467CE869E60129EF7A058282 /* [CP] Check Pods Manifest.lock */,
 				D813C7C2829FC4FEEBC1702A /* Sources */,
 				91F71D312ECC98686D34B529 /* Resources */,
 				7D491F7CF27C80DA7976EE80 /* Frameworks */,
-				427A73DA9ED1BBD1EA80FE1C /* [CP] Embed Pods Frameworks */,
+				568881F2D4CD98539361DD81 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -328,7 +331,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		2104853AFF5C6E2A1D1CF6EC /* [CP] Check Pods Manifest.lock */ = {
+		467CE869E60129EF7A058282 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -350,7 +353,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		427A73DA9ED1BBD1EA80FE1C /* [CP] Embed Pods Frameworks */ = {
+		568881F2D4CD98539361DD81 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -358,9 +361,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-InstantRec/Pods-InstantRec-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-InstantRec/Pods-InstantRec-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -385,6 +392,7 @@
 				2F76EF9C37FB183F01228D40 /* DateFormatter+Extensions.swift in Sources */,
 				7BF5A9463C20C796FFD237E9 /* GoogleDriveService.swift in Sources */,
 				7794600D00AD890BDA48DBF9 /* InstantRecordApp.swift in Sources */,
+				C0CD17461EB4712D128BEA75 /* ListUIComponents.swift in Sources */,
 				89CB27433334E4716A13CA16 /* PlaybackManager.swift in Sources */,
 				1D5B8EE9D05B24A444FC672F /* PlaybackView.swift in Sources */,
 				43F01BB9730EDCB84A2EDF61 /* Recording.swift in Sources */,
@@ -425,7 +433,7 @@
 /* Begin XCBuildConfiguration section */
 		1CBD7A9CC4448A766470A09E /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = DE66F715FFAA6E1A06DA1D9B /* Pods-InstantRec.debug.xcconfig */;
+			baseConfigurationReference = D960708426CD6295406BACCD /* Pods-InstantRec.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -454,7 +462,7 @@
 		};
 		4114713338F71D4F98A9F04C /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = D51D301B474D1249B000626D /* Pods-InstantRec.release.xcconfig */;
+			baseConfigurationReference = BAFE92144756730FA058BD47 /* Pods-InstantRec.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
