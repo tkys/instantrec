@@ -87,9 +87,9 @@ struct RecordingsListView: View {
             .navigationTitle("recordings_title")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(item: $recordingToShare) { recording in
-                ActivityView(recording: recording)
+                SmartActivityView(recording: recording)
                     .onAppear {
-                        print("🎯 RecordingsList: Presenting ActivityView for recording: \(recording.fileName)")
+                        print("🎯 RecordingsList: Presenting SmartActivityView for recording: \(recording.fileName)")
                     }
             }
             .sheet(item: $selectedRecording) { recording in

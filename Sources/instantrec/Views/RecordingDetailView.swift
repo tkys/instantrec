@@ -60,6 +60,63 @@ struct RecordingDetailView: View {
                                 .font(.title2)
                         }
                     }
+                    
+                    // P0機能: インタラクティブプログレススライダー
+                    if playbackManager.currentPlayingRecording?.id == recording.id {
+                        VStack(spacing: 12) {
+                            // プログレススライダー
+                            Slider(
+                                value: Binding(
+                                    get: { playbackManager.playbackProgress },
+                                    set: { newValue in
+                                        playbackManager.seek(to: newValue)
+                                    }
+                                ),
+                                in: 0...1
+                            )
+                            .accentColor(.blue)
+                            
+                            // 時間表示
+                            HStack {
+                                Text(playbackManager.currentPlaybackTime)
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundColor(.secondary)
+                                
+                                Spacer()
+                                
+                                Text(playbackManager.totalPlaybackTime)
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            // P0機能: 再生速度制御
+                            HStack(spacing: 8) {
+                                Text("Speed:")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                
+                                ForEach(playbackManager.availablePlaybackRates, id: \.self) { rate in
+                                    Button(action: {
+                                        playbackManager.setPlaybackRate(rate)
+                                    }) {
+                                        Text(formatPlaybackRate(rate))
+                                            .font(.caption)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(
+                                                playbackManager.playbackRate == rate ? 
+                                                Color.blue : Color(.systemGray6)
+                                            )
+                                            .foregroundColor(
+                                                playbackManager.playbackRate == rate ? 
+                                                .white : .primary
+                                            )
+                                            .cornerRadius(6)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 .padding(.horizontal, HierarchicalSpacing.level3)
                 
@@ -96,6 +153,14 @@ struct RecordingDetailView: View {
                                     .foregroundColor(.red)
                                     
                                     Spacer()
+                                    
+                                    // P0機能: リセットボタン
+                                    if recording.transcription != recording.originalTranscription {
+                                        Button("Reset") {
+                                            resetTranscription()
+                                        }
+                                        .foregroundColor(.orange)
+                                    }
                                     
                                     Button("Save") {
                                         saveTranscription()
@@ -173,6 +238,16 @@ struct RecordingDetailView: View {
         return String(format: "%d:%02d", minutes, seconds)
     }
     
+    private func formatPlaybackRate(_ rate: Float) -> String {
+        if rate == 1.0 {
+            return "1x"
+        } else if rate == floor(rate) {
+            return "\(Int(rate))x"
+        } else {
+            return "\(rate)x"
+        }
+    }
+    
     private func startTranscriptionEdit() {
         if let transcription = recording.transcription {
             editedTranscription = transcription
@@ -202,6 +277,22 @@ struct RecordingDetailView: View {
             editedTranscription = transcription
         }
         isEditingTranscription = false
+    }
+    
+    private func resetTranscription() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if let originalTranscription = recording.originalTranscription {
+                recording.transcription = originalTranscription
+                editedTranscription = originalTranscription
+            }
+            
+            do {
+                try modelContext.save()
+                print("✅ Transcription reset to original")
+            } catch {
+                print("❌ Failed to reset transcription: \(error)")
+            }
+        }
     }
     
     private func shareRecording() {

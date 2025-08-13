@@ -6,34 +6,56 @@ import CoreMedia
 /// WhisperKit モデル選択列挙型
 enum WhisperKitModel: String, CaseIterable, Identifiable {
     var id: String { rawValue }
-    case tiny = "tiny"
-    case base = "base"
+    
+    // 推奨モデル（実用レベル）
     case small = "small"
-    case medium = "medium"
+    case base = "base" 
     case large = "large-v3"
+    
+    // 非推奨モデル（精度が低い）
+    case tiny = "tiny"
+    case medium = "medium"
     
     var displayName: String {
         switch self {
-        case .tiny: return "Tiny (43MB) - 高速"
-        case .base: return "Base (145MB) - バランス"
-        case .small: return "Small (~500MB) - 高精度"
-        case .medium: return "Medium (~1GB) - 非常に高精度"
-        case .large: return "Large-v3 (1.5GB) - 最高精度"
+        case .small: return "標準 (~500MB) - 推奨"
+        case .base: return "高速 (145MB) - バランス"
+        case .large: return "高精度 (1.5GB) - 最高品質"
+        case .tiny: return "最軽量 (43MB) - 非推奨"
+        case .medium: return "Medium (~1GB) - 非推奨"
         }
     }
     
     var description: String {
         switch self {
-        case .tiny: return "リアルタイム処理向け、最高速度"
-        case .base: return "速度と精度のバランス、推奨設定"
-        case .small: return "より高い精度、中程度の速度"
-        case .medium: return "非常に高精度、処理時間長め"
-        case .large: return "最高精度、専門用途、処理時間最長"
+        case .small: return "精度と速度の最適バランス、日常使用に最適"
+        case .base: return "高速処理、リアルタイム向け"
+        case .large: return "最高精度、専門用途・重要な会議向け"
+        case .tiny: return "低精度のため非推奨、テスト用途のみ"
+        case .medium: return "性能対効果が低いため非推奨"
         }
     }
     
-    // 将来のモデル変更機能のためのプレースホルダー
-    // 現在はbaseモデル固定
+    var isRecommended: Bool {
+        switch self {
+        case .small, .base, .large: return true
+        case .tiny, .medium: return false
+        }
+    }
+    
+    var estimatedSize: String {
+        switch self {
+        case .tiny: return "43MB"
+        case .base: return "145MB"
+        case .small: return "~500MB"
+        case .medium: return "~1GB"
+        case .large: return "1.5GB"
+        }
+    }
+    
+    static var recommendedModels: [WhisperKitModel] {
+        return allCases.filter { $0.isRecommended }
+    }
 }
 
 /// WhisperKitを使用した高精度文字起こしサービス
@@ -57,14 +79,14 @@ class WhisperKitTranscriptionService: ObservableObject {
     /// 初期化状態
     @Published var isInitialized: Bool = false
     
-    /// 現在選択されているモデル
-    @Published var selectedModel: WhisperKitModel = .base
+    /// 現在選択されているモデル（smallを推奨デフォルトに変更）
+    @Published var selectedModel: WhisperKitModel = .small
     
-    /// 使用可能なモデル一覧
-    @Published var availableModels: [WhisperKitModel] = WhisperKitModel.allCases
+    /// 使用可能なモデル一覧（推奨モデルを優先表示）
+    @Published var availableModels: [WhisperKitModel] = WhisperKitModel.recommendedModels + WhisperKitModel.allCases.filter { !$0.isRecommended }
     
     /// ダウンロード済みモデル一覧
-    @Published var downloadedModels: Set<WhisperKitModel> = [.tiny] // tinyはプリインストール
+    @Published var downloadedModels: Set<WhisperKitModel> = [] // 初期状態では空
     
     // MARK: - Private Properties
     
