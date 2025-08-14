@@ -49,6 +49,7 @@ struct LazyRecordingInterface: View {
     let isRecording: Bool
     let elapsedTime: String
     @ObservedObject var audioService: AudioService
+    @ObservedObject var viewModel: RecordingViewModel
     let stopAction: () -> Void
     let isManualStart: Bool
     
@@ -79,8 +80,9 @@ struct LazyRecordingInterface: View {
                         .font(.system(size: 60))
                         .foregroundColor(.red)
                     
-                    Enhanced15BarAudioMeter(audioService: audioService, isRecording: true)
-                        .frame(height: 60)
+                    // Featuristic waveform during recording
+                    FeaturisticWaveformView(audioService: audioService)
+                        .frame(height: 120)
                     
                     Text("Processing audio")
                         .foregroundColor(Color(UIColor.secondaryLabel))
@@ -91,17 +93,53 @@ struct LazyRecordingInterface: View {
                     .font(.system(.largeTitle, design: .monospaced, weight: .light))
                     .foregroundColor(Color(UIColor.label))
                 
-                Button(action: stopAction) {
-                    HStack {
-                        Image(systemName: "stop.fill")
-                        Text("Stop Recording")
+                // Enhanced Recording Controls
+                HStack(spacing: 24) {
+                    // 破棄ボタン
+                    Button(action: { 
+                        viewModel.discardRecording()
+                    }) {
+                        VStack(spacing: 8) {
+                            Image(systemName: "trash.fill")
+                                .font(.title2)
+                            Text("Discard")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.red)
+                        .frame(width: 80, height: 80)
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(20)
                     }
-                    .font(.title)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .frame(width: 200, height: 80)
-                    .background(Color.red)
-                    .cornerRadius(40)
+                    
+                    // 一時停止/再開ボタン
+                    Button(action: { 
+                        viewModel.togglePauseResume()
+                    }) {
+                        VStack(spacing: 8) {
+                            Image(systemName: viewModel.isPaused ? "play.fill" : "pause.fill")
+                                .font(.title2)
+                            Text(viewModel.isPaused ? "Resume" : "Pause")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.orange)
+                        .frame(width: 80, height: 80)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(20)
+                    }
+                    
+                    // 停止ボタン（保存）
+                    Button(action: stopAction) {
+                        VStack(spacing: 8) {
+                            Image(systemName: "stop.fill")
+                                .font(.title2)
+                            Text("Save")
+                                .font(.caption)
+                        }
+                        .foregroundColor(.blue)
+                        .frame(width: 80, height: 80)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(20)
+                    }
                 }
             } else {
                 // 超軽量インターフェース（即座に表示）
@@ -143,7 +181,9 @@ struct RecordingView: View {
                 .fill(Color.clear)
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    handleRecordingTap()
+                    Task {
+                        await handleRecordingTapAsync()
+                    }
                 }
             
             VStack(spacing: 40) {
@@ -173,14 +213,22 @@ struct RecordingView: View {
                     
                 case .granted:
                     if viewModel.isRecording {
-                        LazyRecordingInterface(
-                            isRecording: viewModel.isRecording,
-                            elapsedTime: viewModel.elapsedTime,
-                            audioService: viewModel.audioService,
-                            stopAction: { viewModel.stopRecording() },
-                            isManualStart: (viewModel.showManualRecordButton == false && recordingSettings.recordingStartMode == .manual) || 
-                                          (recordingSettings.recordingStartMode == .countdown)
-                        )
+                        VStack(spacing: 20) {
+                            LazyRecordingInterface(
+                                isRecording: viewModel.isRecording,
+                                elapsedTime: viewModel.elapsedTime,
+                                audioService: viewModel.audioService,
+                                viewModel: viewModel,
+                                stopAction: { 
+                                    Task {
+                                        await stopRecordingWithTranscription()
+                                    }
+                                },
+                                isManualStart: (viewModel.showManualRecordButton == false && recordingSettings.recordingStartMode == .manual) || 
+                                              (recordingSettings.recordingStartMode == .countdown)
+                            )
+                            
+                        }
                     } else if viewModel.showManualRecordButton {
                         // 手動録音待機画面（改良版統一デザイン）
                         VStack(spacing: 30) {
@@ -212,7 +260,11 @@ struct RecordingView: View {
                                 .font(.system(.largeTitle, design: .monospaced, weight: .light))
                                 .foregroundColor(Color(UIColor.secondaryLabel))
                             
-                            Button(action: { viewModel.startManualRecording() }) {
+                            Button(action: { 
+                                Task {
+                                    await startRecordingWithTranscription(manual: true)
+                                }
+                            }) {
                                 HStack {
                                     Image(systemName: "record.circle.fill")
                                     Text("Start Recording")
@@ -252,9 +304,12 @@ struct RecordingView: View {
                                     .font(.subheadline)
                             }
                             
-                            // Enhanced audio level meter
-                            Enhanced15BarAudioMeter(audioService: viewModel.audioService, isRecording: false)
-                                .frame(height: 60)
+                            // Featuristic enhanced waveform display
+                            AdaptiveFeaturisticWaveform(
+                                audioService: viewModel.audioService, 
+                                recordingViewModel: viewModel
+                            )
+                            .frame(height: 140)
                         }
                     }
                 }
@@ -316,6 +371,40 @@ struct RecordingView: View {
                 viewModel.startManualRecording()
             }
         }
+    }
+    
+    // MARK: - Async Recording Methods with Realtime Transcription
+    
+    private func handleRecordingTapAsync() async {
+        print("🎯 Async full-screen tap detected - isRecording: \(viewModel.isRecording)")
+        
+        if viewModel.isRecording {
+            await stopRecordingWithTranscription()
+        } else {
+            await startRecordingWithTranscription(manual: false)
+        }
+    }
+    
+    private func startRecordingWithTranscription(manual: Bool) async {
+        if manual {
+            viewModel.startManualRecording()
+        } else {
+            // 録音開始モードに応じた処理
+            switch recordingSettings.recordingStartMode {
+            case .instantStart:
+                viewModel.startRecording()
+            case .countdown:
+                viewModel.showingCountdown = true
+                return // カウントダウン後に別途開始される
+            case .manual:
+                viewModel.startManualRecording()
+            }
+        }
+    }
+    
+    private func stopRecordingWithTranscription() async {
+        // 録音停止
+        viewModel.stopRecording()
     }
 }
 

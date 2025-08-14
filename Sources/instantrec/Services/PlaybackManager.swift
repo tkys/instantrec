@@ -10,9 +10,13 @@ class PlaybackManager: ObservableObject {
     @Published var playbackProgress: Double = 0.0
     @Published var currentPlaybackTime: String = "00:00"
     @Published var totalPlaybackTime: String = "00:00"
+    @Published var playbackRate: Float = 1.0
     
     private var audioPlayer: AVAudioPlayer?
     private var timer: Timer?
+    
+    // 再生速度オプション
+    let availablePlaybackRates: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
     
     private init() {}
     
@@ -69,6 +73,30 @@ class PlaybackManager: ObservableObject {
         playbackProgress = 0.0
         currentPlaybackTime = "00:00"
         totalPlaybackTime = "00:00"
+        playbackRate = 1.0
+    }
+    
+    func seek(to progress: Double) {
+        guard let player = audioPlayer else { return }
+        
+        let targetTime = progress * player.duration
+        player.currentTime = targetTime
+        playbackProgress = progress
+        currentPlaybackTime = formatTime(targetTime)
+        
+        print("⏯️ Seeking to: \(formatTime(targetTime))")
+    }
+    
+    func setPlaybackRate(_ rate: Float) {
+        guard availablePlaybackRates.contains(rate) else { 
+            print("⚠️ Invalid playback rate: \(rate)")
+            return 
+        }
+        
+        playbackRate = rate
+        audioPlayer?.rate = rate
+        
+        print("🎵 Playback rate set to: \(rate)x")
     }
     
     private func setupPlayer(for recording: Recording) {
@@ -78,6 +106,8 @@ class PlaybackManager: ObservableObject {
         do {
             audioPlayer = try AVAudioPlayer(contentsOf: url)
             audioPlayer?.prepareToPlay()
+            audioPlayer?.enableRate = true  // 再生速度変更を有効化
+            audioPlayer?.rate = playbackRate  // 現在の再生速度を適用
             totalPlaybackTime = formatTime(audioPlayer?.duration ?? 0)
             currentPlaybackTime = "00:00"
             playbackProgress = 0.0

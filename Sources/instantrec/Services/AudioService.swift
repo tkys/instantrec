@@ -275,6 +275,32 @@ class AudioService: ObservableObject {
         }
     }
 
+    func pauseRecording() {
+        guard let recorder = audioRecorder, recorder.isRecording else { 
+            print("⚠️ Cannot pause: No active recording")
+            return 
+        }
+        
+        print("⏸️ Pausing recording...")
+        recorder.pause()
+        audioLevel = 0.0
+    }
+    
+    func resumeRecording() {
+        guard let recorder = audioRecorder else { 
+            print("⚠️ Cannot resume: No recorder available")
+            return 
+        }
+        
+        print("▶️ Resuming recording...")
+        let resumed = recorder.record()
+        if resumed {
+            print("✅ Recording resumed successfully")
+        } else {
+            print("❌ Failed to resume recording")
+        }
+    }
+    
     func stopRecording() {
         guard let recorder = audioRecorder else { return }
         
@@ -290,6 +316,38 @@ class AudioService: ObservableObject {
         }
         
         audioRecorder = nil
+    }
+    
+    func discardRecording() {
+        guard let recorder = audioRecorder else { return }
+        
+        let recordingURL = recorder.url
+        print("🗑️ Discarding recording...")
+        recorder.stop()
+        audioLevel = 0.0
+        
+        // ファイルを削除
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            do {
+                if FileManager.default.fileExists(atPath: recordingURL.path) {
+                    try FileManager.default.removeItem(at: recordingURL)
+                    print("🗑️ Recording file deleted successfully")
+                }
+            } catch {
+                print("⚠️ Failed to delete recording file: \(error.localizedDescription)")
+            }
+        }
+        
+        audioRecorder = nil
+    }
+    
+    var isRecording: Bool {
+        return audioRecorder?.isRecording ?? false
+    }
+    
+    var isPaused: Bool {
+        guard let recorder = audioRecorder else { return false }
+        return !recorder.isRecording && recorder.url.path.contains(".m4a")
     }
     
     func updateAudioLevel() {

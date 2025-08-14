@@ -424,3 +424,4 @@ enum WhisperKitTranscriptionError: LocalizedError {
         }
     }
 }
+

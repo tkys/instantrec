@@ -5,6 +5,7 @@ import SwiftUI
 
 class RecordingViewModel: ObservableObject {
     @Published var isRecording = false
+    @Published var isPaused = false
     @Published var elapsedTime = "00:00"
     @Published var navigateToList = false
     @Published var permissionStatus: PermissionStatus = .unknown
@@ -208,9 +209,37 @@ class RecordingViewModel: ObservableObject {
         }
     }
 
+    func pauseRecording() {
+        print("⏸️ ViewModel: Pausing recording")
+        audioService.pauseRecording()
+        isPaused = true
+        timer?.invalidate()
+    }
+    
+    func resumeRecording() {
+        print("▶️ ViewModel: Resuming recording")
+        audioService.resumeRecording()
+        isPaused = false
+        
+        // タイマーを再開
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            self?.updateElapsedTime()
+            self?.audioService.updateAudioLevel()
+        }
+    }
+    
+    func togglePauseResume() {
+        if isPaused {
+            resumeRecording()
+        } else {
+            pauseRecording()
+        }
+    }
+    
     func stopRecording() {
         audioService.stopRecording()
         isRecording = false
+        isPaused = false
         timer?.invalidate()
 
         if let fileName = currentRecordingFileName, let startTime = recordingStartTime {
@@ -280,12 +309,31 @@ class RecordingViewModel: ObservableObject {
         }
     }
     
+    func discardRecording() {
+        print("🗑️ ViewModel: Discarding current recording")
+        
+        // AudioServiceで録音停止とファイル削除を行う
+        audioService.discardRecording()
+        isRecording = false
+        isPaused = false
+        timer?.invalidate()
+        
+        // 状態をリセット
+        currentRecordingFileName = nil
+        recordingStartTime = nil
+        elapsedTime = "00:00"
+        
+        // 一覧画面に移動
+        navigateToList = true
+    }
+    
     func discardRecordingAndNavigateToList() {
         print("🗑️ Discarding current recording and navigating to list")
         
         // 録音を停止
         audioService.stopRecording()
         isRecording = false
+        isPaused = false
         timer?.invalidate()
         
         // 録音ファイルを削除
