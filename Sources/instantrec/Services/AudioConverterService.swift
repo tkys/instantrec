@@ -43,8 +43,8 @@ class AudioConverterService {
             exportSession.outputFileType = .mp3
             exportSession.shouldOptimizeForNetworkUse = true
             
-            // MP3品質に応じた設定
-            exportSession.audioSettings = quality.audioSettings
+            // MP3品質に応じた設定（AVAssetExportSessionは自動で最適化される）
+            // exportSession.audioSettings は存在しないプロパティのため削除
             
             // 変換実行
             exportSession.exportAsynchronously {

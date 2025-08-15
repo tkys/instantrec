@@ -12,6 +12,7 @@ struct RecordingsListView: View {
     @Query(sort: \Recording.createdAt, order: .reverse) private var recordings: [Recording]
     @State private var recordingToShare: Recording?
     @State private var selectedRecording: Recording?
+    @State private var showingStatusHelp = false
 
     var body: some View {
         NavigationView {
@@ -86,6 +87,14 @@ struct RecordingsListView: View {
             }
             .navigationTitle("recordings_title")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Status Guide", systemImage: "questionmark.circle") {
+                        showingStatusHelp = true
+                    }
+                    .foregroundColor(.blue)
+                }
+            }
             .sheet(item: $recordingToShare) { recording in
                 SmartActivityView(recording: recording)
                     .onAppear {
@@ -94,6 +103,9 @@ struct RecordingsListView: View {
             }
             .sheet(item: $selectedRecording) { recording in
                 RecordingDetailView(recording: recording, modelContext: modelContext)
+            }
+            .sheet(isPresented: $showingStatusHelp) {
+                StatusIconHelpSheet()
             }
         }
     }

@@ -84,7 +84,8 @@ struct CountdownView: View {
     
     private func startCountdown() {
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            if remainingTime > 1 {
+            if remainingTime > 0 {
+                // アニメーション効果
                 withAnimation(.easeInOut(duration: 0.1)) {
                     scale = 1.2
                 }
@@ -96,20 +97,23 @@ struct CountdownView: View {
                 }
                 
                 remainingTime -= 1
-            } else {
-                stopTimer()
                 
-                // 最後のアニメーション
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    scale = 1.5
-                }
-                
-                // 完了時の振動フィードバック
-                let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
-                impactFeedback.impactOccurred()
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    onCountdownComplete()
+                // カウントダウンが0になったら完了処理
+                if remainingTime == 0 {
+                    stopTimer()
+                    
+                    // 最後のアニメーション
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        scale = 1.5
+                    }
+                    
+                    // 完了時の振動フィードバック
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+                    impactFeedback.impactOccurred()
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        onCountdownComplete()
+                    }
                 }
             }
         }

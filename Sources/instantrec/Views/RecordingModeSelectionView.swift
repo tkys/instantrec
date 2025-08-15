@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RecordingModeSelectionView: View {
     @StateObject private var settings = RecordingSettings.shared
+    @EnvironmentObject private var themeService: AppThemeService
     @State private var selectedMode: RecordingStartMode = .manual
     @State private var showingInstantRecordingConsent = false
     @Binding var isPresented: Bool
@@ -13,7 +14,7 @@ struct RecordingModeSelectionView: View {
                 VStack(spacing: 16) {
                     Image(systemName: "waveform.circle.fill")
                         .font(.system(size: 64))
-                        .foregroundColor(.blue)
+                        .foregroundColor(themeService.currentTheme.primaryColor)
                     
                     Text("InstantRec")
                         .font(.largeTitle)
@@ -54,7 +55,7 @@ struct RecordingModeSelectionView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 50)
-                        .background(Color.blue)
+                        .background(themeService.currentTheme.primaryColor)
                         .cornerRadius(10)
                 }
                 .padding(.horizontal, 20)
@@ -88,6 +89,7 @@ struct RecordingModeCard: View {
     let mode: RecordingStartMode
     let isSelected: Bool
     let onTap: () -> Void
+    @EnvironmentObject private var themeService: AppThemeService
     
     var body: some View {
         Button(action: onTap) {
@@ -95,7 +97,7 @@ struct RecordingModeCard: View {
                 // アイコン
                 Image(systemName: mode.icon)
                     .font(.system(size: 28))
-                    .foregroundColor(isSelected ? .white : .blue)
+                    .foregroundColor(isSelected ? .white : themeService.currentTheme.primaryColor)
                     .frame(width: 44, height: 44)
                 
                 // テキスト情報
@@ -132,11 +134,11 @@ struct RecordingModeCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.blue : Color(.systemGray6))
+                    .fill(isSelected ? themeService.currentTheme.primaryColor : themeService.currentTheme.cardBackgroundColor)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? themeService.currentTheme.primaryColor : Color.clear, lineWidth: 2)
             )
         }
         .buttonStyle(PlainButtonStyle())

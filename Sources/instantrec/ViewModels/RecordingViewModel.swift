@@ -21,6 +21,11 @@ class RecordingViewModel: ObservableObject {
     private var lastBackgroundTime: Date?
     @ObservedObject private var recordingSettings = RecordingSettings.shared
     private let uploadQueue = UploadQueue.shared
+    
+    // バックグラウンド録音対応
+    @ObservedObject private var backgroundAudioService = BackgroundAudioService.shared
+    @ObservedObject private var appLifecycleManager = AppLifecycleManager()
+    @Published var backgroundRecordingEnabled = false
 
     enum PermissionStatus {
         case unknown, granted, denied
@@ -33,10 +38,26 @@ class RecordingViewModel: ObservableObject {
         // UploadQueueにモデルコンテキストを設定
         uploadQueue.setModelContext(modelContext)
         
+        // バックグラウンド録音サービス初期化
+        setupBackgroundServices()
+        
         let setupTime = CFAbsoluteTimeGetCurrent() - launchTime
         print("⚙️ ViewModel setup completed at: \(String(format: "%.1f", setupTime * 1000))ms")
         
         checkPermissions()
+    }
+    
+    /// バックグラウンド録音サービスの初期化
+    private func setupBackgroundServices() {
+        // サービス間の連携設定
+        backgroundAudioService.setAudioService(audioService)
+        appLifecycleManager.setBackgroundAudioService(backgroundAudioService)
+        
+        // バックグラウンド録音機能の有効性確認
+        backgroundRecordingEnabled = backgroundAudioService.isBackgroundCapable
+        
+        print("📱 Background recording services setup completed")
+        print("   - Background capability: \(backgroundRecordingEnabled)")
     }
     
     func checkPermissions() {
@@ -183,6 +204,11 @@ class RecordingViewModel: ObservableObject {
         let fileName = "rec-\(timestamp).m4a"
         currentRecordingFileName = fileName
 
+        // バックグラウンド録音準備
+        if backgroundRecordingEnabled {
+            appLifecycleManager.prepareForRecording()
+        }
+        
         if audioService.startRecording(fileName: fileName) != nil {
             if let launchTime = appLaunchTime {
                 let actualRecordingStartTime = CFAbsoluteTimeGetCurrent() - launchTime
@@ -193,6 +219,11 @@ class RecordingViewModel: ObservableObject {
             // UI状態更新は録音開始後
             recordingStartTime = Date()
             isRecording = true
+            
+            // バックグラウンド録音監視開始
+            if backgroundRecordingEnabled {
+                appLifecycleManager.recordingDidStart()
+            }
             
             // 手動開始モードの場合は即座にタイマー開始、即座録音の場合は遅延開始（UI負荷軽減）
             let timerDelay = (recordingSettings.recordingStartMode == .countdown || recordingSettings.recordingStartMode == .manual) ? 0.0 : 0.3
@@ -241,6 +272,11 @@ class RecordingViewModel: ObservableObject {
         isRecording = false
         isPaused = false
         timer?.invalidate()
+        
+        // バックグラウンド録音監視停止
+        if backgroundRecordingEnabled {
+            appLifecycleManager.recordingDidStop()
+        }
 
         if let fileName = currentRecordingFileName, let startTime = recordingStartTime {
             let duration = Date().timeIntervalSince(startTime)
@@ -300,7 +336,8 @@ class RecordingViewModel: ObservableObject {
             } catch {
                 print("❌ Transcription failed: \(error)")
                 await MainActor.run {
-                    recording.transcription = "Transcription failed: \(error.localizedDescription)"
+                    recording.transcription = nil
+                    recording.transcriptionError = error.localizedDescription
                     recording.transcriptionDate = Date()
                     recording.transcriptionStatus = .error
                     try? self.modelContext?.save()

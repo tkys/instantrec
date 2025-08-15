@@ -255,7 +255,201 @@ struct UnifiedMetadata: View {
     }
 }
 
-// MARK: - 統一録音カード
+// MARK: - Spotify風録音カード（プレミアムデザイン）
+
+struct SpotifyStyleRecordingCard: View {
+    let recording: Recording
+    let showTranscriptionPreview: Bool
+    let onPlayTap: () -> Void
+    let onDetailTap: () -> Void
+    let onFavoriteTap: () -> Void
+    let onShareTap: () -> Void
+    let isPlaying: Bool
+    
+    @EnvironmentObject private var themeService: AppThemeService
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // メイン録音情報エリア
+            HStack(spacing: ListUITheme.primarySpacing) {
+                // 左：プレイボタン（Spotify風の大きなボタン）
+                Button(action: onPlayTap) {
+                    ZStack {
+                        Circle()
+                            .fill(isPlaying ? AppTheme.universalPauseColor : AppTheme.universalPlayColor)
+                            .frame(width: 56, height: 56)
+                        
+                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                            .offset(x: isPlaying ? 0 : 2)
+                    }
+                }
+                .buttonStyle(ScaleButtonStyle())
+                
+                // 中央：録音情報
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(recording.displayName)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .lineLimit(2)
+                        .foregroundColor(.primary)
+                    
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Text(recording.relativeTimeString)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        Text("•")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Text(formatDuration(recording.duration))
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    // プロミネントステータスバー
+                    HStack(spacing: 12) {
+                        ProminentStatusBadge(
+                            status: getTranscriptionStatus(),
+                            iconName: "doc.text",
+                            text: transcriptionStatusText
+                        )
+                        
+                        ProminentStatusBadge(
+                            status: getCloudStatus(),
+                            iconName: "icloud",
+                            text: cloudStatusText
+                        )
+                    }
+                }
+                
+                Spacer()
+                
+                // 右：アクションボタン群
+                VStack(spacing: 8) {
+                    Button(action: onFavoriteTap) {
+                        Image(systemName: recording.isFavorite ? "star.fill" : "star")
+                            .font(.title3)
+                            .foregroundColor(recording.isFavorite ? themeService.currentTheme.warningColor : .secondary)
+                    }
+                    .buttonStyle(ScaleButtonStyle())
+                    
+                    Button(action: onShareTap) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.title3)
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(ScaleButtonStyle())
+                    
+                    Button(action: onDetailTap) {
+                        Image(systemName: "ellipsis")
+                            .font(.title3)
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(ScaleButtonStyle())
+                }
+            }
+            .padding(ListUITheme.primarySpacing)
+            
+            // オプション：文字起こしプレビュー
+            if showTranscriptionPreview, 
+               let transcription = recording.transcription,
+               !transcription.isEmpty {
+                
+                Divider()
+                    .padding(.horizontal, ListUITheme.primarySpacing)
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "quote.bubble")
+                            .font(.caption)
+                            .foregroundColor(themeService.currentTheme.infoColor)
+                        
+                        Text("Transcript")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(themeService.currentTheme.infoColor)
+                        
+                        if recording.transcription != recording.originalTranscription {
+                            Image(systemName: "pencil.circle.fill")
+                                .font(.caption2)
+                                .foregroundColor(themeService.currentTheme.warningColor)
+                        }
+                        
+                        Spacer()
+                    }
+                    
+                    Text(transcription)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                        .onTapGesture(perform: onDetailTap)
+                }
+                .padding(ListUITheme.primarySpacing)
+                .background(Color(.systemGray6).opacity(0.3))
+            }
+        }
+        .background(themeService.currentTheme.cardBackgroundColor)
+        .cornerRadius(16)
+        .shadow(color: themeService.currentTheme.primaryColor.opacity(0.1), radius: 8, x: 0, y: 4)
+    }
+    
+    // MARK: - ステータス計算
+    
+    private func getTranscriptionStatus() -> ProminentStatusBadge.StatusType {
+        if let transcription = recording.transcription, !transcription.isEmpty {
+            if recording.transcription != recording.originalTranscription {
+                return .processing // Edited state - show as processing/changed
+            }
+            return .success
+        }
+        // TODO: 処理中の状態を検出（実際の文字起こしサービスのステータスを確認）
+        return .inactive
+    }
+    
+    private func getCloudStatus() -> ProminentStatusBadge.StatusType {
+        switch recording.cloudSyncStatus {
+        case .synced: return .success
+        case .uploading: return .processing
+        case .error: return .error
+        default: return .inactive
+        }
+    }
+    
+    private var transcriptionStatusText: String {
+        if let transcription = recording.transcription, !transcription.isEmpty {
+            if recording.transcription != recording.originalTranscription {
+                return "Edited"
+            }
+            return "Done"
+        }
+        return "Pending"
+    }
+    
+    private var cloudStatusText: String {
+        switch recording.cloudSyncStatus {
+        case .synced: return "Saved"
+        case .uploading: return "Saving..."
+        case .error: return "Failed"
+        case .notSynced: return "Local"
+        default: return "Local"
+        }
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
+// MARK: - 統一録音カード（後方互換性用）
 
 struct UnifiedRecordingCard: View {
     let recording: Recording
@@ -267,113 +461,15 @@ struct UnifiedRecordingCard: View {
     let isPlaying: Bool
     
     var body: some View {
-        VStack(alignment: .leading, spacing: ListUITheme.secondarySpacing) {
-            // Header Section
-            HStack {
-                VStack(alignment: .leading, spacing: ListUITheme.compactSpacing) {
-                    Text(recording.displayName)
-                        .font(ListUITheme.subtitleFont)
-                        .lineLimit(2)
-                    
-                    UnifiedMetadata(
-                        primaryText: recording.relativeTimeString,
-                        secondaryText: formatDuration(recording.duration),
-                        iconName: "clock"
-                    )
-                }
-                
-                Spacer()
-                
-                // Status Icons
-                HStack(spacing: ListUITheme.tightSpacing) {
-                    UnifiedStatusIndicator(
-                        status: .transcriptionCompleted,
-                        action: nil
-                    )
-                    
-                    UnifiedStatusIndicator(
-                        status: .cloudSynced,
-                        action: nil
-                    )
-                    
-                    UnifiedStatusIndicator(
-                        status: .favorite(recording.isFavorite),
-                        action: onFavoriteTap
-                    )
-                }
-            }
-            
-            // Playback Controls
-            HStack(spacing: ListUITheme.secondarySpacing) {
-                UnifiedStatusIndicator(
-                    status: .playing(isPlaying),
-                    action: onPlayTap
-                )
-                
-                Spacer()
-                
-                ListActionButton(
-                    title: "Details",
-                    iconName: "info.circle",
-                    size: .small,
-                    style: .outline(ListUITheme.infoColor),
-                    action: onDetailTap
-                )
-                
-                ListActionButton(
-                    title: "Share",
-                    iconName: "square.and.arrow.up",
-                    size: .small,
-                    style: .outline(ListUITheme.neutralColor),
-                    action: onShareTap
-                )
-            }
-            
-            // Transcription Preview
-            if showTranscriptionPreview,
-               let transcription = recording.transcription,
-               !transcription.isEmpty {
-                
-                VStack(alignment: .leading, spacing: ListUITheme.tightSpacing) {
-                    HStack {
-                        Image(systemName: "doc.text")
-                            .foregroundColor(ListUITheme.infoColor)
-                            .font(ListUITheme.captionFont)
-                        
-                        Text("Transcription")
-                            .font(ListUITheme.captionFont)
-                            .fontWeight(.medium)
-                            .foregroundColor(ListUITheme.infoColor)
-                        
-                        if recording.transcription != recording.originalTranscription {
-                            Image(systemName: "pencil.circle.fill")
-                                .foregroundColor(ListUITheme.warningColor)
-                                .font(.caption2)
-                        }
-                        
-                        Spacer()
-                    }
-                    
-                    Text(transcription)
-                        .font(ListUITheme.bodyFont)
-                        .foregroundColor(.secondary)
-                        .lineLimit(3)
-                        .onTapGesture(perform: onDetailTap)
-                }
-                .padding(ListUITheme.tightSpacing)
-                .background(Color(.systemGray6).opacity(0.5))
-                .cornerRadius(ListUITheme.buttonCornerRadius)
-            }
-        }
-        .padding(ListUITheme.primarySpacing)
-        .background(Color(.systemGray6))
-        .cornerRadius(ListUITheme.cardCornerRadius)
-    }
-    
-    private func formatDuration(_ duration: TimeInterval) -> String {
-        let minutes = Int(duration) / 60
-        let seconds = Int(duration) % 60
-        return String(format: "%d:%02d", minutes, seconds)
+        SpotifyStyleRecordingCard(
+            recording: recording,
+            showTranscriptionPreview: showTranscriptionPreview,
+            onPlayTap: onPlayTap,
+            onDetailTap: onDetailTap,
+            onFavoriteTap: onFavoriteTap,
+            onShareTap: onShareTap,
+            isPlaying: isPlaying
+        )
     }
 }
 
@@ -451,6 +547,346 @@ struct UnifiedDetailHeader: View {
                         iconName: "info.circle"
                     )
                 }
+            }
+        }
+    }
+}
+
+// MARK: - Spotify風コンポーネント
+
+/// プロミネントステータスバッジ（Spotify風スタイル）
+struct ProminentStatusBadge: View {
+    enum StatusType {
+        case success, processing, error, inactive
+        
+        func color(theme: AppTheme) -> Color {
+            switch self {
+            case .success: return theme.successColor
+            case .processing: return theme.primaryColor
+            case .error: return theme.errorColor
+            case .inactive: return theme.neutralColor
+            }
+        }
+        
+        func backgroundColor(theme: AppTheme) -> Color {
+            switch self {
+            case .success: return theme.successColor.opacity(0.15)
+            case .processing: return theme.primaryColor.opacity(0.15)
+            case .error: return theme.errorColor.opacity(0.15)
+            case .inactive: return theme.neutralColor.opacity(0.15)
+            }
+        }
+    }
+    
+    let status: StatusType
+    let iconName: String
+    let text: String
+    
+    @EnvironmentObject private var themeService: AppThemeService
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: iconName)
+                .font(.caption2)
+                .foregroundColor(status.color(theme: themeService.currentTheme))
+            
+            Text(text)
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundColor(status.color(theme: themeService.currentTheme))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(status.backgroundColor(theme: themeService.currentTheme))
+        .cornerRadius(8)
+    }
+}
+
+/// スケールアニメーション付きボタンスタイル
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+/// モデルダウンロードステータスインジケーター（強化版）
+struct EnhancedModelDownloadIndicator: View {
+    enum DownloadState {
+        case notDownloaded
+        case downloading(progress: Float)
+        case downloaded
+        case error
+        
+        var iconName: String {
+            switch self {
+            case .notDownloaded: return "arrow.down.circle"
+            case .downloading: return "arrow.down.circle.fill"
+            case .downloaded: return "checkmark.circle.fill"
+            case .error: return "exclamationmark.triangle.fill"
+            }
+        }
+        
+        var color: Color {
+            switch self {
+            case .notDownloaded: return .blue
+            case .downloading: return .orange
+            case .downloaded: return .green
+            case .error: return .red
+            }
+        }
+        
+        var backgroundColor: Color {
+            switch self {
+            case .notDownloaded: return .blue.opacity(0.1)
+            case .downloading: return .orange.opacity(0.1)
+            case .downloaded: return .green.opacity(0.1)
+            case .error: return .red.opacity(0.1)
+            }
+        }
+        
+        var text: String {
+            switch self {
+            case .notDownloaded: return "Tap to Download"
+            case .downloading(let progress): return "Downloading \(Int(progress * 100))%"
+            case .downloaded: return "Downloaded"
+            case .error: return "Retry Download"
+            }
+        }
+    }
+    
+    let state: DownloadState
+    let action: (() -> Void)?
+    
+    var body: some View {
+        Button(action: action ?? {}) {
+            HStack(spacing: 8) {
+                ZStack {
+                    // Background circle for progress
+                    if case .downloading(let progress) = state {
+                        Circle()
+                            .stroke(Color(.systemGray5), lineWidth: 2)
+                            .overlay(
+                                Circle()
+                                    .trim(from: 0, to: CGFloat(progress))
+                                    .stroke(state.color, lineWidth: 2)
+                                    .rotationEffect(.degrees(-90))
+                            )
+                            .frame(width: 20, height: 20)
+                    }
+                    
+                    Image(systemName: state.iconName)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(state.color)
+                }
+                
+                Text(state.text)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(state.color)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(state.backgroundColor)
+            .cornerRadius(12)
+        }
+        .buttonStyle(ScaleButtonStyle())
+        .disabled(action == nil)
+    }
+}
+
+// MARK: - Spotify風アイコンシステム
+
+/// ステータスヘルプシート（ユーザー向けアイコン説明）
+struct StatusIconHelpSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            List {
+                Section("Transcription Status") {
+                    StatusHelpRow(
+                        iconName: "doc.text",
+                        title: "Pending",
+                        description: "Transcription not started",
+                        color: Color(.systemGray)
+                    )
+                    StatusHelpRow(
+                        iconName: "waveform.and.mic",
+                        title: "Processing",
+                        description: "Creating transcript from audio",
+                        color: .blue
+                    )
+                    StatusHelpRow(
+                        iconName: "checkmark.circle.fill",
+                        title: "Done",
+                        description: "Transcript ready to view",
+                        color: .green
+                    )
+                    StatusHelpRow(
+                        iconName: "pencil.circle",
+                        title: "Edited",
+                        description: "Transcript has been modified",
+                        color: .orange
+                    )
+                }
+                
+                Section("Cloud Backup Status") {
+                    StatusHelpRow(
+                        iconName: "icloud.slash",
+                        title: "Local",
+                        description: "Stored only on this device",
+                        color: Color(.systemGray)
+                    )
+                    StatusHelpRow(
+                        iconName: "icloud.and.arrow.up",
+                        title: "Saving...",
+                        description: "Uploading to Google Drive",
+                        color: .blue
+                    )
+                    StatusHelpRow(
+                        iconName: "icloud.fill",
+                        title: "Saved",
+                        description: "Backed up to Google Drive",
+                        color: .green
+                    )
+                    StatusHelpRow(
+                        iconName: "icloud.slash",
+                        title: "Failed",
+                        description: "Backup error - try again",
+                        color: .red
+                    )
+                }
+                
+                Section("Model Download Status") {
+                    StatusHelpRow(
+                        iconName: "arrow.down.circle",
+                        title: "Tap to Download",
+                        description: "AI model not downloaded yet",
+                        color: .blue
+                    )
+                    StatusHelpRow(
+                        iconName: "arrow.down.circle.fill",
+                        title: "Downloading...",
+                        description: "Fetching AI model from server",
+                        color: .orange
+                    )
+                    StatusHelpRow(
+                        iconName: "checkmark.circle.fill",
+                        title: "Downloaded",
+                        description: "AI model ready for transcription",
+                        color: .green
+                    )
+                }
+            }
+            .navigationTitle("Status Icons Guide")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+}
+
+struct StatusHelpRow: View {
+    let iconName: String
+    let title: String
+    let description: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: iconName)
+                .font(.title3)
+                .foregroundColor(color)
+                .frame(width: 24)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+/// ステータスアイコン用統一システム（強化版）
+struct StatusIconSystem {
+    // 文字起こし状態
+    enum TranscriptionStatus {
+        case none, processing, completed, edited, error
+        
+        var iconName: String {
+            switch self {
+            case .none: return "doc.text"
+            case .processing: return "waveform.and.mic"
+            case .completed: return "checkmark.circle.fill"
+            case .edited: return "pencil.circle"
+            case .error: return "exclamationmark.triangle.fill"
+            }
+        }
+        
+        var color: Color {
+            switch self {
+            case .none: return Color(.systemGray)
+            case .processing: return .blue
+            case .completed: return .green
+            case .edited: return .orange
+            case .error: return .red
+            }
+        }
+        
+        var displayText: String {
+            switch self {
+            case .none: return "No transcript"
+            case .processing: return "Transcribing..."
+            case .completed: return "Transcript ready"
+            case .edited: return "Transcript edited"
+            case .error: return "Transcription failed"
+            }
+        }
+    }
+    
+    // Google Driveバックアップ状態
+    enum BackupStatus {
+        case notSynced, syncing(progress: Float), synced, error
+        
+        var iconName: String {
+            switch self {
+            case .notSynced: return "icloud.slash"
+            case .syncing: return "icloud.and.arrow.up"
+            case .synced: return "icloud.fill"
+            case .error: return "icloud.slash"
+            }
+        }
+        
+        var color: Color {
+            switch self {
+            case .notSynced: return Color(.systemGray)
+            case .syncing: return .blue
+            case .synced: return .green
+            case .error: return .red
+            }
+        }
+        
+        var displayText: String {
+            switch self {
+            case .notSynced: return "Local only"
+            case .syncing(let progress): return "Syncing \(Int(progress * 100))%"
+            case .synced: return "Cloud synced"
+            case .error: return "Sync failed"
             }
         }
     }

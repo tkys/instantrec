@@ -135,7 +135,13 @@ struct RecordingTabView: View {
                     .font(.system(size: 60))
                     .foregroundColor(.red)
                 
-                LazyAudioLevelMeter(audioService: viewModel.audioService, isManualStart: false)
+                UnifiedAudioMeter(
+                    audioService: viewModel.audioService,
+                    isRecording: true,
+                    isPaused: viewModel.isPaused,
+                    showActiveAnimation: true
+                )
+                .frame(height: 80)
                 
                 Text("processing_audio")
                     .foregroundColor(Color(UIColor.secondaryLabel))
@@ -172,15 +178,14 @@ struct RecordingTabView: View {
                     .font(.system(size: 32, weight: .light))
                     .foregroundColor(.gray)
                 
-                // Audio level meter (inactive)
-                HStack(spacing: 2) {
-                    ForEach(0..<15, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 12, height: CGFloat.random(in: 20...60))
-                    }
-                }
-                .frame(height: 60)
+                // 統一デザインの待機状態録音バー
+                UnifiedAudioMeter(
+                    audioService: viewModel.audioService,
+                    isRecording: false,
+                    isPaused: false,
+                    showActiveAnimation: false
+                )
+                .frame(height: 80)
             }
         }
     }

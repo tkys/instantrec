@@ -58,6 +58,9 @@ final class Recording: Identifiable {
     /// 文字起こし処理日時
     var transcriptionDate: Date?
     
+    /// 文字起こしエラーメッセージ
+    var transcriptionError: String?
+    
     /// 文字起こし状態（内部用文字列）
     var transcriptionStatusRawValue: String = TranscriptionStatus.none.rawValue
     
@@ -81,6 +84,15 @@ final class Recording: Identifiable {
     
     /// カスタムタイトル
     var customTitle: String?
+    
+    // MARK: - Computed Properties
+    
+    /// オーディオファイルのURL
+    var audioURL: URL? {
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let fileURL = documentsPath.appendingPathComponent(fileName)
+        return FileManager.default.fileExists(atPath: fileURL.path) ? fileURL : nil
+    }
 
     init(id: UUID = UUID(), fileName: String, createdAt: Date, duration: TimeInterval, isFavorite: Bool = false) {
         self.id = id

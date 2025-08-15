@@ -1,46 +1,171 @@
 import SwiftUI
 
-struct LazyAudioLevelMeter: View {
+// MARK: - 統一リアルタイム録音バーコンポーネント
+
+struct UnifiedAudioMeter: View {
     @ObservedObject var audioService: AudioService
-    let isManualStart: Bool
-    @State private var isLoaded = false
+    let isRecording: Bool
+    let isPaused: Bool
+    let showActiveAnimation: Bool
+    @EnvironmentObject private var themeService: AppThemeService
+    
+    private let barCount = 25
+    private let barSpacing: CGFloat = 2
+    private let barCornerRadius: CGFloat = 1.5
+    private let containerHeight: CGFloat = 60
+    
+    // デバッグ用状態
+    @State private var debugUpdateCount: Int = 0
     
     var body: some View {
-        Group {
-            if isLoaded {
-                HStack(spacing: 3) {
-                    ForEach(0..<20) { index in
-                        let barThreshold = Float(index) / 20.0
-                        let isActive = audioService.audioLevel > barThreshold
-                        Rectangle()
-                            .fill(Color.red.opacity(isActive ? 0.9 : 0.2))
-                            .frame(width: 3, height: 20)
-                            .cornerRadius(1.5)
-                            .animation(.easeInOut(duration: 0.1), value: isActive)
-                    }
+        VStack(spacing: 8) {
+            // ステータス表示
+            HStack {
+                Circle()
+                    .fill(getStatusColor())
+                    .frame(width: 8, height: 8)
+                    .scaleEffect(showActiveAnimation && isRecording && !isPaused ? 1.2 : 1.0)
+                    .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: showActiveAnimation && isRecording && !isPaused)
+                
+                Text(getStatusText())
+                    .font(.caption)
+                    .foregroundColor(getStatusColor())
+                    .fontWeight(.medium)
+                
+                Spacer()
+            }
+            
+            // 統一デザインの音声レベルバー
+            HStack(spacing: barSpacing) {
+                ForEach(0..<barCount, id: \.self) { index in
+                    let barThreshold = Float(index) / Float(barCount)
+                    let isActive = audioService.audioLevel > barThreshold
+                    let barHeight = getBarHeight(for: index, isActive: isActive)
+                    
+                    RoundedRectangle(cornerRadius: barCornerRadius)
+                        .fill(getBarColor(for: index, isActive: isActive))
+                        .frame(width: getBarWidth(), height: barHeight)
+                        .animation(.easeInOut(duration: 0.1), value: isActive)
                 }
-            } else {
-                // プレースホルダー（軽量）
-                Rectangle()
-                    .fill(Color.red.opacity(0.2))
-                    .frame(height: 20)
-                    .cornerRadius(2)
+            }
+            .frame(height: containerHeight)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(themeService.currentTheme.cardBackgroundColor)
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(getStatusColor().opacity(0.2), lineWidth: 1)
+        )
+        .onReceive(audioService.$audioLevel) { level in
+            // デバッグ: 音声レベル更新を確認
+            debugUpdateCount += 1
+            if debugUpdateCount % 10 == 0 || level > 0.1 {
+                print("🎚️ UnifiedAudioMeter update #\(debugUpdateCount): \(String(format: "%.3f", level)) - isRecording: \(isRecording)")
             }
         }
         .onAppear {
-            if isManualStart {
-                // 手動開始（含カウントダウン）の場合は即座に表示
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    isLoaded = true
-                }
-            } else {
-                // 即座録音の場合は遅延でロード
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        isLoaded = true
-                    }
-                }
+            print("🎚️ UnifiedAudioMeter appeared - isRecording: \(isRecording), isPaused: \(isPaused)")
+            
+            // 待機状態でも音声モニタリングを開始
+            if !isRecording {
+                audioService.startStandbyAudioMonitoring()
             }
+            
+            // デバッグ: 音声レベルを強制的に模擬（テスト用）
+            // 注意: シミュレーターでは実際のマイク音声が取得できないため、AudioServiceの
+            // シミュレート機能を使用する（実機では自動的に無効化される）
+            if isRecording {
+                // startMockAudioLevelForTesting() // 一時的に無効化
+            }
+        }
+        .onDisappear {
+            // 待機状態の音声モニタリングを停止
+            if !isRecording {
+                audioService.stopStandbyAudioMonitoring()
+            }
+        }
+    }
+    
+    private func getStatusColor() -> Color {
+        if isPaused {
+            return AppTheme.universalPauseColor
+        } else if isRecording {
+            return AppTheme.universalRecordColor
+        } else {
+            return themeService.currentTheme.readyStateColor
+        }
+    }
+    
+    private func getStatusText() -> String {
+        if isPaused {
+            return "Paused"
+        } else if isRecording {
+            return "Recording"
+        } else {
+            return "Ready"
+        }
+    }
+    
+    private func getBarWidth() -> CGFloat {
+        return 3.0
+    }
+    
+    private func getBarHeight(for index: Int, isActive: Bool) -> CGFloat {
+        let baseHeight: CGFloat = 4
+        let maxHeight: CGFloat = containerHeight - 16
+        
+        if !isActive {
+            return baseHeight
+        }
+        
+        // 中央に向かって高くなるカーブ
+        let centerIndex = Float(barCount) / 2.0
+        let distanceFromCenter = abs(Float(index) - centerIndex)
+        let normalizedDistance = distanceFromCenter / centerIndex
+        let heightMultiplier = 1.0 - (normalizedDistance * 0.3) // 端は30%低く
+        
+        let dynamicHeight = baseHeight + (maxHeight - baseHeight) * CGFloat(heightMultiplier) * CGFloat(audioService.audioLevel)
+        return min(maxHeight, max(baseHeight, dynamicHeight))
+    }
+    
+    private func getBarColor(for index: Int, isActive: Bool) -> Color {
+        if !isActive {
+            return getStatusColor().opacity(0.2)
+        }
+        
+        let intensity = audioService.audioLevel
+        
+        // 実機での微細な音声レベルも視覚化（感度向上）
+        if intensity > 0.6 {
+            return AppTheme.universalRecordColor // 赤（高音量）
+        } else if intensity > 0.3 {
+            return AppTheme.universalPauseColor // オレンジ（中音量）
+        } else if intensity > 0.05 {
+            return Color.green // 緑（低音量も表示）
+        } else {
+            return getStatusColor().opacity(0.6) // ステータス色（微弱音声）
+        }
+    }
+    
+    // MARK: - デバッグ機能
+    
+    private func startMockAudioLevelForTesting() {
+        // 録音中のテスト用音声レベル模擬
+        print("🧪 Starting mock audio level testing for recording...")
+        
+        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
+            guard isRecording else {
+                timer.invalidate()
+                print("🧪 Mock audio level timer invalidated")
+                return
+            }
+            
+            // ランダムな音声レベルを生成（テスト用）
+            let mockLevel = Float.random(in: 0.2...1.0) // 最低0.2で確実に表示
+            audioService.setTestAudioLevel(mockLevel)
+            print("🧪 Mock audio level set: \(String(format: "%.3f", mockLevel))")
         }
     }
 }
@@ -54,6 +179,7 @@ struct LazyRecordingInterface: View {
     let isManualStart: Bool
     
     @State private var showFullInterface = false
+    @EnvironmentObject private var themeService: AppThemeService
     
     var body: some View {
         VStack(spacing: 30) {
@@ -62,14 +188,14 @@ struct LazyRecordingInterface: View {
                 VStack(spacing: 8) {
                     HStack {
                         Circle()
-                            .fill(Color.red)
+                            .fill(AppTheme.universalRecordColor)
                             .frame(width: 12, height: 12)
                             .opacity(0.8)
                             .scaleEffect(1.1)
                             .animation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: true)
                         
                         Text("Recording")
-                            .foregroundColor(.red)
+                            .foregroundColor(AppTheme.universalRecordColor)
                             .font(.title2)
                             .fontWeight(.bold)
                     }
@@ -78,11 +204,16 @@ struct LazyRecordingInterface: View {
                 VStack(spacing: 15) {
                     Image(systemName: "waveform")
                         .font(.system(size: 60))
-                        .foregroundColor(.red)
+                        .foregroundColor(AppTheme.universalRecordColor)
                     
-                    // Featuristic waveform during recording
-                    FeaturisticWaveformView(audioService: audioService)
-                        .frame(height: 120)
+                    // 統一デザインの録音バー
+                    UnifiedAudioMeter(
+                        audioService: audioService,
+                        isRecording: true,
+                        isPaused: viewModel.isPaused,
+                        showActiveAnimation: true
+                    )
+                    .frame(height: 80)
                     
                     Text("Processing audio")
                         .foregroundColor(Color(UIColor.secondaryLabel))
@@ -93,7 +224,7 @@ struct LazyRecordingInterface: View {
                     .font(.system(.largeTitle, design: .monospaced, weight: .light))
                     .foregroundColor(Color(UIColor.label))
                 
-                // Enhanced Recording Controls
+                // 統一デザインの録音コントロール
                 HStack(spacing: 24) {
                     // 破棄ボタン
                     Button(action: { 
@@ -105,9 +236,9 @@ struct LazyRecordingInterface: View {
                             Text("Discard")
                                 .font(.caption)
                         }
-                        .foregroundColor(.red)
+                        .foregroundColor(AppTheme.universalDiscardColor)
                         .frame(width: 80, height: 80)
-                        .background(Color.red.opacity(0.1))
+                        .background(AppTheme.universalDiscardColor.opacity(0.1))
                         .cornerRadius(20)
                     }
                     
@@ -121,9 +252,9 @@ struct LazyRecordingInterface: View {
                             Text(viewModel.isPaused ? "Resume" : "Pause")
                                 .font(.caption)
                         }
-                        .foregroundColor(.orange)
+                        .foregroundColor(AppTheme.universalPauseColor)
                         .frame(width: 80, height: 80)
-                        .background(Color.orange.opacity(0.1))
+                        .background(AppTheme.universalPauseColor.opacity(0.1))
                         .cornerRadius(20)
                     }
                     
@@ -135,9 +266,9 @@ struct LazyRecordingInterface: View {
                             Text("Save")
                                 .font(.caption)
                         }
-                        .foregroundColor(.blue)
+                        .foregroundColor(AppTheme.universalStopColor)
                         .frame(width: 80, height: 80)
-                        .background(Color.blue.opacity(0.1))
+                        .background(AppTheme.universalStopColor.opacity(0.1))
                         .cornerRadius(20)
                     }
                 }
@@ -145,28 +276,20 @@ struct LazyRecordingInterface: View {
                 // 超軽量インターフェース（即座に表示）
                 Text("REC")
                     .font(.title)
-                    .foregroundColor(.red)
+                    .foregroundColor(AppTheme.universalRecordColor)
                     .fontWeight(.bold)
             }
         }
         .onAppear {
-            if isManualStart {
-                // 手動開始の場合は即座にフルインターフェース表示
-                showFullInterface = true
-            } else {
-                // 即座録音の場合は遅延でフルインターフェース表示
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    withAnimation(.easeInOut(duration: 0.5)) {
-                        showFullInterface = true
-                    }
-                }
-            }
+            // 常に即座にフルインターフェースを表示（ボタンが見えるように）
+            showFullInterface = true
         }
     }
 }
 
 struct RecordingView: View {
     @EnvironmentObject private var viewModel: RecordingViewModel
+    @EnvironmentObject private var themeService: AppThemeService
     // Note: AppStateManager integration commented out for now to resolve compilation
     // @EnvironmentObject private var appState: AppStateManager
     @StateObject private var recordingSettings = RecordingSettings.shared
@@ -230,17 +353,17 @@ struct RecordingView: View {
                             
                         }
                     } else if viewModel.showManualRecordButton {
-                        // 手動録音待機画面（改良版統一デザイン）
+                        // 手動録音待機画面（統一デザイン）
                         VStack(spacing: 30) {
                             VStack(spacing: 8) {
                                 HStack {
                                     Circle()
-                                        .fill(Color.blue)
+                                        .fill(themeService.currentTheme.readyStateColor)
                                         .frame(width: 12, height: 12)
                                         .opacity(0.8)
                                     
                                     Text("Ready to Record")
-                                        .foregroundColor(.blue)
+                                        .foregroundColor(themeService.currentTheme.readyStateColor)
                                         .font(.title2)
                                         .fontWeight(.bold)
                                 }
@@ -249,12 +372,21 @@ struct RecordingView: View {
                             VStack(spacing: 15) {
                                 Image(systemName: "mic")
                                     .font(.system(size: 60))
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(themeService.currentTheme.readyStateColor)
                                 
                                 Text("Tap the button to start recording")
                                     .foregroundColor(Color(UIColor.secondaryLabel))
                                     .font(.subheadline)
                             }
+                            
+                            // 統一デザインの待機状態録音バー
+                            UnifiedAudioMeter(
+                                audioService: viewModel.audioService,
+                                isRecording: false,
+                                isPaused: false,
+                                showActiveAnimation: false
+                            )
+                            .frame(height: 80)
                             
                             Text("--:--")
                                 .font(.system(.largeTitle, design: .monospaced, weight: .light))
@@ -273,22 +405,22 @@ struct RecordingView: View {
                                 .fontWeight(.semibold)
                                 .foregroundColor(.white)
                                 .frame(width: 200, height: 80)
-                                .background(Color.red)
+                                .background(AppTheme.universalRecordColor)
                                 .cornerRadius(40)
                             }
                         }
                     } else {
-                        // Instant recording ready state（改良版統一デザイン）
+                        // 即座録音待機状態（統一デザイン）
                         VStack(spacing: 30) {
                             VStack(spacing: 8) {
                                 HStack {
                                     Circle()
-                                        .fill(Color.gray)
+                                        .fill(themeService.currentTheme.readyStateColor)
                                         .frame(width: 12, height: 12)
                                         .opacity(0.8)
                                     
                                     Text("Ready to Record")
-                                        .foregroundColor(.gray)
+                                        .foregroundColor(themeService.currentTheme.readyStateColor)
                                         .font(.title2)
                                         .fontWeight(.bold)
                                 }
@@ -297,19 +429,21 @@ struct RecordingView: View {
                             VStack(spacing: 15) {
                                 Image(systemName: "waveform")
                                     .font(.system(size: 60))
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(themeService.currentTheme.readyStateColor)
                                 
                                 Text("Tap anywhere to start recording")
                                     .foregroundColor(Color(UIColor.secondaryLabel))
                                     .font(.subheadline)
                             }
                             
-                            // Featuristic enhanced waveform display
-                            AdaptiveFeaturisticWaveform(
-                                audioService: viewModel.audioService, 
-                                recordingViewModel: viewModel
+                            // 統一デザインの待機状態録音バー
+                            UnifiedAudioMeter(
+                                audioService: viewModel.audioService,
+                                isRecording: false,
+                                isPaused: false,
+                                showActiveAnimation: false
                             )
-                            .frame(height: 140)
+                            .frame(height: 80)
                         }
                     }
                 }
@@ -340,6 +474,12 @@ struct RecordingView: View {
             // 手動開始モードの状態を更新
             if recordingSettings.recordingStartMode == .manual && !viewModel.isRecording {
                 viewModel.showManualRecordButton = true
+            }
+        }
+        .onDisappear {
+            // 待機状態の音声モニタリングを停止
+            if !viewModel.isRecording {
+                viewModel.audioService.stopStandbyAudioMonitoring()
             }
         }
         .onChange(of: recordingSettings.recordingStartMode) { _, _ in
@@ -408,91 +548,4 @@ struct RecordingView: View {
     }
 }
 
-// MARK: - Enhanced Audio Level Meter
-
-struct Enhanced15BarAudioMeter: View {
-    @ObservedObject var audioService: AudioService
-    let isRecording: Bool
-    @State private var animatedLevels: [Float] = Array(repeating: 0.0, count: 15)
-    
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(0..<15, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(getBarColor(for: index))
-                    .frame(width: 12)
-                    .frame(height: getBarHeight(for: index))
-                    .animation(.easeInOut(duration: 0.1), value: animatedLevels[index])
-            }
-        }
-        .onAppear {
-            if isRecording {
-                startLevelAnimation()
-            } else {
-                // Show static inactive state
-                animatedLevels = Array(repeating: 0.2, count: 15)
-            }
-        }
-        .onChange(of: isRecording) { _, newValue in
-            if newValue {
-                startLevelAnimation()
-            } else {
-                stopLevelAnimation()
-            }
-        }
-    }
-    
-    private func getBarColor(for index: Int) -> Color {
-        let level = animatedLevels[index]
-        
-        if !isRecording {
-            return Color.gray.opacity(0.3)
-        }
-        
-        if level > 0.8 {
-            return Color.red
-        } else if level > 0.5 {
-            return Color.orange
-        } else if level > 0.2 {
-            return Color.yellow
-        } else {
-            return Color.gray.opacity(0.3)
-        }
-    }
-    
-    private func getBarHeight(for index: Int) -> CGFloat {
-        let baseHeight: CGFloat = 20
-        let maxHeight: CGFloat = 60
-        let level = animatedLevels[index]
-        
-        return baseHeight + (maxHeight - baseHeight) * CGFloat(level)
-    }
-    
-    private func startLevelAnimation() {
-        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
-            guard isRecording else {
-                timer.invalidate()
-                return
-            }
-            
-            // Simulate dynamic audio levels based on actual audioService level
-            let currentLevel = audioService.audioLevel
-            
-            for i in 0..<15 {
-                let barThreshold = Float(i) / 15.0
-                let randomVariation = Float.random(in: -0.1...0.1)
-                let targetLevel = currentLevel > barThreshold ? currentLevel + randomVariation : 0.1
-                
-                withAnimation(.easeInOut(duration: 0.1)) {
-                    animatedLevels[i] = max(0.0, min(1.0, targetLevel))
-                }
-            }
-        }
-    }
-    
-    private func stopLevelAnimation() {
-        withAnimation(.easeOut(duration: 0.5)) {
-            animatedLevels = Array(repeating: 0.2, count: 15)
-        }
-    }
-}
+// MARK: - 旧コンポーネントを削除してUnifiedAudioMeterに統一

@@ -9,6 +9,7 @@ import GoogleSignIn
 struct InstantRecApp: App {
     @StateObject private var recordingViewModel = RecordingViewModel()
     @StateObject private var recordingSettings = RecordingSettings.shared
+    @StateObject private var themeService = AppThemeService.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var showingModeSelection = false
     
@@ -80,6 +81,7 @@ struct InstantRecApp: App {
                     // Recording Tab
                     RecordingView()
                         .environmentObject(recordingViewModel)
+                        .environmentObject(themeService)
                         .environment(\.modelContext, sharedModelContainer.mainContext)
                         .tabItem {
                             Image(systemName: "mic")
@@ -89,6 +91,7 @@ struct InstantRecApp: App {
                     // Recordings List Tab  
                     RecordingsListView()
                         .environmentObject(recordingViewModel)
+                        .environmentObject(themeService)
                         .environment(\.modelContext, sharedModelContainer.mainContext)
                         .tabItem {
                             Image(systemName: "list.bullet")
@@ -97,11 +100,13 @@ struct InstantRecApp: App {
                     
                     // Settings Tab
                     SettingsView()
+                        .environmentObject(themeService)
                         .tabItem {
                             Image(systemName: "gear")
                             Text("Settings")
                         }
                 }
+                .accentColor(themeService.currentTheme.primaryColor)
                 .onAppear {
                     let onAppearTime = CFAbsoluteTimeGetCurrent() - appLaunchTime
                     print("🖥️ UI appeared at: \(String(format: "%.1f", onAppearTime * 1000))ms")

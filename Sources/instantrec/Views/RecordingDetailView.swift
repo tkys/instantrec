@@ -14,6 +14,7 @@ struct RecordingDetailView: View {
     @State private var isEditingTitle = false
     @State private var editedTitle = ""
     @State private var showingShareSheet = false
+    @State private var isRetryingTranscription = false
     
     var body: some View {
         ScrollView {
@@ -178,14 +179,39 @@ struct RecordingDetailView: View {
                     .padding(.horizontal, HierarchicalSpacing.level3)
                 } else {
                     VStack(spacing: HierarchicalSpacing.level3) {
-                        Text("No transcription available")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                        
-                        Text("Enable Auto Transcription in Settings to automatically transcribe new recordings.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
+                        // 文字起こし失敗時の表示と再試行ボタン
+                        if recording.transcriptionError != nil {
+                            Text("Transcription Failed")
+                                .font(.headline)
+                                .foregroundColor(.red)
+                            
+                            Text("初期化がタイムアウトしました（モデルがダウンロード中の可能性があります）")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                            
+                            Button("Retry Transcription") {
+                                retryTranscription()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .foregroundColor(.white)
+                            .disabled(isRetryingTranscription)
+                            
+                            if isRetryingTranscription {
+                                ProgressView("Retrying...")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } else {
+                            Text("No transcription available")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                            
+                            Text("Enable Auto Transcription in Settings to automatically transcribe new recordings.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, HierarchicalSpacing.level3)
@@ -300,6 +326,44 @@ struct RecordingDetailView: View {
         impactGenerator.impactOccurred()
         
         showingShareSheet = true
+    }
+    
+    private func retryTranscription() {
+        guard let audioURL = recording.audioURL else {
+            print("❌ No audio URL available for retry")
+            return
+        }
+        
+        isRetryingTranscription = true
+        
+        Task {
+            do {
+                // WhisperKitTranscriptionServiceを使用して再試行
+                try await WhisperKitTranscriptionService.shared.retryTranscription(audioURL: audioURL)
+                
+                // 成功時の処理
+                await MainActor.run {
+                    self.recording.transcription = WhisperKitTranscriptionService.shared.transcriptionText
+                    self.recording.transcriptionError = nil
+                    self.isRetryingTranscription = false
+                    
+                    do {
+                        try modelContext.save()
+                        print("✅ Transcription retry successful")
+                    } catch {
+                        print("❌ Failed to save retried transcription: \(error)")
+                    }
+                }
+                
+            } catch {
+                // 失敗時の処理
+                await MainActor.run {
+                    self.recording.transcriptionError = error.localizedDescription
+                    self.isRetryingTranscription = false
+                    print("❌ Transcription retry failed: \(error)")
+                }
+            }
+        }
     }
     
     private func deleteRecording() {

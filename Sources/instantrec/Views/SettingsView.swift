@@ -4,10 +4,12 @@ struct SettingsView: View {
     @StateObject private var recordingSettings = RecordingSettings.shared
     @StateObject private var driveService = GoogleDriveService.shared
     @StateObject private var whisperService = WhisperKitTranscriptionService.shared
+    @StateObject private var audioService = AudioService()
     @State private var showingRecordingModeSelection = false
     @State private var showingStartModeSelection = false
     @State private var showingCountdownSelection = false
     @State private var showingAIModelSelection = false
+    @State private var showingAudioQualitySelection = false
     @State private var autoTranscriptionEnabled: Bool
     @State private var autoBackupEnabled: Bool
     
@@ -48,13 +50,28 @@ struct SettingsView: View {
                     Text("Recording Behavior")
                 }
                 
+                // Appearance Section
+                Section {
+                    ThemeSettingRow()
+                } header: {
+                    Text("Appearance")
+                }
+                
                 // Audio & AI Section
                 Section {
+                    ToggleSettingRow(
+                        title: "Voice Isolation",
+                        isOn: Binding(
+                            get: { audioService.voiceIsolationEnabled },
+                            set: { audioService.toggleVoiceIsolation($0) }
+                        )
+                    )
+                    
                     SettingRow(
-                        title: "Noise Reduction",
-                        value: "Medium",
+                        title: "Audio Quality",
+                        value: audioService.voiceIsolationEnabled ? "High (Voice Isolation)" : "Standard",
                         hasDisclosure: true,
-                        action: { /* Navigate to noise reduction selection */ }
+                        action: { showingAudioQualitySelection = true }
                     )
                     
                     ToggleSettingRow(
@@ -75,6 +92,12 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("Audio & AI")
+                } footer: {
+                    if audioService.voiceIsolationEnabled {
+                        Text("Voice Isolation enhances speech clarity by reducing background noise using advanced audio processing.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
                 // Cloud & Sync Section  
@@ -106,6 +129,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showingAIModelSelection) {
                 AIModelSelectionSheet()
+            }
+            .sheet(isPresented: $showingAudioQualitySelection) {
+                AudioQualitySelectionSheet(audioService: audioService)
             }
             .onAppear {
                 // Viewが表示される際にWhisperServiceの状態を確認
@@ -265,14 +291,19 @@ struct AIModelSelectionSheet: View {
                                 }
                             }
                             
+                            // Enhanced model download status
+                            EnhancedModelDownloadIndicator(
+                                state: getDownloadState(for: model),
+                                action: isDownloaded(model) ? nil : {
+                                    downloadModel(model)
+                                }
+                            )
+                            
                             // モデルの詳細情報
                             HStack(spacing: 12) {
-                                HStack(spacing: 4) {
-                                    getDownloadStatusIcon(model)
-                                    Text("Size: \(getModelSize(model))")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
+                                Text("Size: \(getModelSize(model))")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
                                 
                                 Label("Speed: \(getSpeedRating(model))", systemImage: "speedometer")
                                     .font(.caption2)
@@ -318,21 +349,58 @@ struct AIModelSelectionSheet: View {
     
     private func getModelSize(_ model: WhisperKitModel) -> String {
         switch model {
-        case .tiny: return "43MB"
-        case .base: return "145MB"
-        case .small: return "~500MB"
-        case .medium: return "~1GB"
+        case .medium: return "1GB"
+        case .small: return "500MB"
         case .large: return "1.5GB"
         }
     }
     
     private func getSpeedRating(_ model: WhisperKitModel) -> String {
         switch model {
-        case .tiny: return "★★★★★"
-        case .base: return "★★★★☆"
-        case .small: return "★★★☆☆"
-        case .medium: return "★★☆☆☆"
+        case .medium: return "★★★☆☆"
+        case .small: return "★★★★☆"
         case .large: return "★☆☆☆☆"
+        }
+    }
+    
+    private func getDownloadState(for model: WhisperKitModel) -> EnhancedModelDownloadIndicator.DownloadState {
+        let isDownloaded = whisperService.downloadedModels.contains(model)
+        let isDownloading = whisperService.downloadingModels.contains(model)
+        let hasError = whisperService.downloadErrorModels.contains(model)
+        let progress = whisperService.downloadProgress[model] ?? 0.0
+        
+        if hasError {
+            return .error
+        } else if isDownloading {
+            return .downloading(progress: progress)
+        } else if isDownloaded {
+            return .downloaded
+        } else {
+            return .notDownloaded
+        }
+    }
+    
+    private func isDownloaded(_ model: WhisperKitModel) -> Bool {
+        return whisperService.downloadedModels.contains(model)
+    }
+    
+    private func downloadModel(_ model: WhisperKitModel) {
+        print("🔧 Starting download for model: \(model.displayName)")
+        
+        Task {
+            do {
+                await whisperService.changeModel(to: model)
+                await MainActor.run {
+                    // ダウンロード成功時の処理
+                    print("✅ Model \(model.displayName) download completed successfully")
+                }
+            } catch {
+                await MainActor.run {
+                    // エラーハンドリング
+                    print("❌ Model download failed: \(error.localizedDescription)")
+                    // TODO: ユーザーにエラー通知を表示する
+                }
+            }
         }
     }
     
@@ -426,6 +494,144 @@ struct RecordingModeSelectionSheet: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         // Save selection here
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+}
+
+struct AudioQualitySelectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var audioService: AudioService
+    @State private var voiceIsolationEnabled: Bool
+    @State private var noiseReductionLevel: Float
+    
+    init(audioService: AudioService) {
+        self.audioService = audioService
+        _voiceIsolationEnabled = State(initialValue: audioService.voiceIsolationEnabled)
+        _noiseReductionLevel = State(initialValue: audioService.noiseReductionLevel)
+    }
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Voice Isolation")
+                                .font(.headline)
+                            Spacer()
+                            Toggle("", isOn: $voiceIsolationEnabled)
+                                .onChange(of: voiceIsolationEnabled) { _, newValue in
+                                    audioService.toggleVoiceIsolation(newValue)
+                                }
+                        }
+                        
+                        Text("Enhances speech clarity by reducing background noise using advanced 10-band EQ processing.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } header: {
+                    Text("Audio Processing")
+                }
+                
+                if voiceIsolationEnabled {
+                    Section {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Noise Reduction")
+                                    .font(.subheadline)
+                                Spacer()
+                                Text(String(format: "%.0f%%", noiseReductionLevel * 100))
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Slider(value: $noiseReductionLevel, in: 0.0...1.0, step: 0.1)
+                                .onChange(of: noiseReductionLevel) { _, newValue in
+                                    audioService.setNoiseReductionLevel(newValue)
+                                }
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Processing Details")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("• Low frequency noise cut: 60-120Hz")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Text("• Voice enhancement: 500-3000Hz")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Text("• High frequency noise cut: 8-16kHz")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    } header: {
+                        Text("Fine Tuning")
+                    }
+                }
+                
+                Section {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Audio Engine")
+                                .font(.subheadline)
+                            Text(voiceIsolationEnabled ? "AVAudioEngine + Voice Isolation" : "AVAudioRecorder (Standard)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: voiceIsolationEnabled ? "waveform.badge.plus" : "waveform")
+                            .foregroundColor(voiceIsolationEnabled ? .blue : .secondary)
+                    }
+                    
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Sample Rate")
+                                .font(.subheadline)
+                            Text("44.1 kHz")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "speedometer")
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Format")
+                                .font(.subheadline)
+                            Text(voiceIsolationEnabled ? "32-bit Float PCM" : "AAC Compressed")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "doc.text")
+                            .foregroundColor(.secondary)
+                    }
+                } header: {
+                    Text("Technical Information")
+                }
+            }
+            .navigationTitle("Audio Quality")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        // 変更を元に戻す
+                        audioService.toggleVoiceIsolation(audioService.voiceIsolationEnabled)
+                        audioService.setNoiseReductionLevel(audioService.noiseReductionLevel)
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
                         dismiss()
                     }
                     .fontWeight(.semibold)
