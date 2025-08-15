@@ -1170,17 +1170,8 @@ struct TranscriptionProgressView: View {
                 
                 Spacer()
                 
-                if let timeRemaining = estimatedTimeRemaining {
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        Text("約\(Int(timeRemaining))秒")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                }
+                // 予測時間表示を削除し、動的アニメーション強化
+                AnimatedProgressIndicator()
             }
         }
         .padding(ListUITheme.primarySpacing)
@@ -1189,6 +1180,39 @@ struct TranscriptionProgressView: View {
                 .fill(Color(.systemBackground))
                 .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
         )
+    }
+}
+
+/// 動的進行感アニメーションインジケーター
+struct AnimatedProgressIndicator: View {
+    @State private var animationPhase: Double = 0
+    @State private var glowOpacity: Double = 0.3
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "waveform")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .scaleEffect(1 + sin(animationPhase) * 0.1)
+                .opacity(0.7 + sin(animationPhase + 0.5) * 0.3)
+            
+            Text("AI処理中...")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .opacity(0.8 + sin(animationPhase + 1) * 0.2)
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(ListUITheme.primaryColor.opacity(glowOpacity), lineWidth: 1)
+        )
+        .onAppear {
+            withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
+                animationPhase = .pi * 2
+            }
+            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                glowOpacity = 0.8
+            }
+        }
     }
 }
 

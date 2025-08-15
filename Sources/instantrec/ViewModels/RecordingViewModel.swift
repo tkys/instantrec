@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import SwiftData
 import SwiftUI
+import UIKit
 
 class RecordingViewModel: ObservableObject {
     @Published var isRecording = false
@@ -11,8 +12,15 @@ class RecordingViewModel: ObservableObject {
     @Published var permissionStatus: PermissionStatus = .unknown
     @Published var showingCountdown = false
     @Published var showManualRecordButton = false
+    
+    // 長時間録音監視機能
+    @Published var isLongRecording = false
+    @Published var memoryUsage: UInt64 = 0
+    @Published var memoryPressureLevel: MemoryMonitorService.MemoryPressureLevel = .normal
+    @Published var recordingDuration: TimeInterval = 0
 
     var audioService = AudioService()
+    private let memoryMonitor = MemoryMonitorService.shared
     private var timer: Timer?
     private var modelContext: ModelContext?
     private var recordingStartTime: Date?
@@ -118,24 +126,10 @@ class RecordingViewModel: ObservableObject {
         }
     }
     
-    /// 録音開始方式に応じた処理
+    /// 録音開始方式に応じた処理（簡素化）
     private func handleRecordingStart() {
-        switch recordingSettings.recordingStartMode {
-        case .instantStart:
-            if recordingSettings.isInstantRecordingEnabled() {
-                print("🚀 Instant recording start")
-                startRecording()
-            } else {
-                print("⚠️ Instant recording not consented, showing manual button")
-                showManualRecordButton = true
-            }
-        case .countdown:
-            print("⏰ Countdown mode start")
-            showingCountdown = true
-        case .manual:
-            print("🎙️ Manual mode start")
-            showManualRecordButton = true
-        }
+        print("🎙️ Manual mode start")
+        showManualRecordButton = true
     }
     
     func returnFromList() {
@@ -209,6 +203,9 @@ class RecordingViewModel: ObservableObject {
             appLifecycleManager.prepareForRecording()
         }
         
+        // 長時間録音監視開始
+        startLongRecordingMonitoring()
+        
         if audioService.startRecording(fileName: fileName) != nil {
             if let launchTime = appLaunchTime {
                 let actualRecordingStartTime = CFAbsoluteTimeGetCurrent() - launchTime
@@ -225,8 +222,8 @@ class RecordingViewModel: ObservableObject {
                 appLifecycleManager.recordingDidStart()
             }
             
-            // 手動開始モードの場合は即座にタイマー開始、即座録音の場合は遅延開始（UI負荷軽減）
-            let timerDelay = (recordingSettings.recordingStartMode == .countdown || recordingSettings.recordingStartMode == .manual) ? 0.0 : 0.3
+            // 手動開始モードは即座にタイマー開始
+            let timerDelay = 0.0
             DispatchQueue.main.asyncAfter(deadline: .now() + timerDelay) {
                 self.timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
                     self?.updateElapsedTime()
@@ -272,6 +269,9 @@ class RecordingViewModel: ObservableObject {
         isRecording = false
         isPaused = false
         timer?.invalidate()
+        
+        // 長時間録音監視停止
+        stopLongRecordingMonitoring()
         
         // バックグラウンド録音監視停止
         if backgroundRecordingEnabled {
@@ -366,6 +366,9 @@ class RecordingViewModel: ObservableObject {
         isPaused = false
         timer?.invalidate()
         
+        // 長時間録音監視停止
+        stopLongRecordingMonitoring()
+        
         // 状態をリセット
         currentRecordingFileName = nil
         recordingStartTime = nil
@@ -383,6 +386,9 @@ class RecordingViewModel: ObservableObject {
         isRecording = false
         isPaused = false
         timer?.invalidate()
+        
+        // 長時間録音監視停止
+        stopLongRecordingMonitoring()
         
         // 録音ファイルを削除
         if let fileName = currentRecordingFileName {
@@ -412,6 +418,20 @@ class RecordingViewModel: ObservableObject {
         let minutes = Int(elapsed) / 60
         let seconds = Int(elapsed) % 60
         elapsedTime = String(format: "%02d:%02d", minutes, seconds)
+        
+        // 録音時間を更新
+        recordingDuration = elapsed
+        
+        // 長時間録音判定（5分以上）
+        if elapsed >= 300 && !isLongRecording {
+            isLongRecording = true
+            print("🕐 Long recording mode activated (\(Int(elapsed))s)")
+        }
+        
+        // 長時間録音時の定期メンテナンス（30分毎）
+        if isLongRecording && Int(elapsed) % 1800 == 0 {
+            performLongRecordingMaintenance()
+        }
     }
     
     /// カウントダウン完了時の処理
@@ -450,5 +470,89 @@ class RecordingViewModel: ObservableObject {
         
         // 新しい設定に基づいて状態を設定
         handleRecordingStart()
+    }
+    
+    // MARK: - 長時間録音監視機能
+    
+    /// 長時間録音監視開始
+    private func startLongRecordingMonitoring() {
+        print("🧠 Starting long recording monitoring")
+        
+        // メモリ監視開始
+        memoryMonitor.startRecordingMonitoring()
+        
+        // メモリ使用量の監視
+        Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] timer in
+            guard let self = self, self.isRecording else {
+                timer.invalidate()
+                return
+            }
+            
+            self.memoryUsage = self.memoryMonitor.currentMemoryUsage
+            self.memoryPressureLevel = self.memoryMonitor.memoryPressureLevel
+            
+            // 危険レベル時の警告
+            if self.memoryPressureLevel == .critical {
+                print("⚠️ Critical memory pressure detected during recording")
+            }
+        }
+    }
+    
+    /// 長時間録音監視停止
+    private func stopLongRecordingMonitoring() {
+        print("🧠 Stopping long recording monitoring")
+        
+        // メモリ監視停止
+        memoryMonitor.stopRecordingMonitoring()
+        
+        // 状態リセット
+        isLongRecording = false
+        memoryUsage = 0
+        memoryPressureLevel = .normal
+        recordingDuration = 0
+    }
+    
+    /// 長時間録音時の定期メンテナンス
+    private func performLongRecordingMaintenance() {
+        print("🔧 Performing long recording maintenance")
+        
+        // メモリクリーンアップ
+        memoryMonitor.performMemoryCleanup()
+        
+        // システムリソースチェック
+        checkSystemResources()
+    }
+    
+    /// システムリソースチェック
+    private func checkSystemResources() {
+        // バッテリー状態チェック
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        let batteryLevel = UIDevice.current.batteryLevel
+        let batteryState = UIDevice.current.batteryState
+        
+        if batteryLevel < 0.1 && batteryState != .charging {
+            print("⚠️ Low battery warning during long recording")
+        }
+        
+        // ディスク容量チェック
+        if let availableSpace = getAvailableDiskSpace() {
+            let minimumSpace: Int64 = 100 * 1024 * 1024 // 100MB
+            if availableSpace < minimumSpace {
+                print("⚠️ Low disk space warning during long recording")
+            }
+        }
+    }
+    
+    /// 利用可能ディスク容量取得
+    private func getAvailableDiskSpace() -> Int64? {
+        do {
+            let systemAttributes = try FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory())
+            if let freeSpace = systemAttributes[.systemFreeSize] as? NSNumber {
+                return freeSpace.int64Value
+            }
+        } catch {
+            print("❌ Failed to get disk space: \(error)")
+        }
+        return nil
     }
 }

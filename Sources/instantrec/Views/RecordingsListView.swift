@@ -25,7 +25,7 @@ struct RecordingsListView: View {
                     TranscriptionProgressView(
                         progress: whisperService.transcriptionProgress,
                         stage: whisperService.transcriptionStage,
-                        estimatedTimeRemaining: whisperService.estimatedTimeRemaining
+                        estimatedTimeRemaining: nil
                     )
                     .padding(.horizontal, HierarchicalSpacing.level3)
                     .padding(.top, HierarchicalSpacing.level4)

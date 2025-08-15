@@ -149,17 +149,35 @@ struct RecordingDetailView: View {
                             TimestampValidityIndicator(validity: recording.timestampValidity)
                         }
                         
-                        // Display Mode Selector (only when not editing and multiple modes available)
+                        // Display Mode Selector moved to Settings - keep compact version when multiple modes available
                         if !isEditingTranscription && availableDisplayModes.count > 1 {
-                            CompactDisplayModeSelector(
-                                availableModes: availableDisplayModes,
-                                selectedMode: $selectedDisplayMode,
-                                onModeChange: { newMode in
-                                    withAnimation(.easeInOut(duration: 0.3)) {
-                                        selectedDisplayMode = newMode
+                            HStack {
+                                Text("表示モード: \(selectedDisplayMode.displayName)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                
+                                Spacer()
+                                
+                                Menu {
+                                    ForEach(availableDisplayModes, id: \.self) { mode in
+                                        Button(action: {
+                                            withAnimation(.easeInOut(duration: 0.3)) {
+                                                selectedDisplayMode = mode
+                                            }
+                                        }) {
+                                            Label(mode.displayName, systemImage: mode.iconName)
+                                        }
                                     }
+                                } label: {
+                                    Image(systemName: "ellipsis.circle")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
                                 }
-                            )
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(6)
                         }
                         
                         if isEditingTranscription {

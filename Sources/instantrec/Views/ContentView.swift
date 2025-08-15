@@ -89,18 +89,7 @@ struct RecordingTabView: View {
                 }
             }
             
-            // Countdown overlay
-            if viewModel.showingCountdown {
-                CountdownView(
-                    duration: recordingSettings.countdownDuration,
-                    onCountdownComplete: {
-                        viewModel.onCountdownComplete()
-                    },
-                    onCancel: {
-                        viewModel.onCountdownCancel()
-                    }
-                )
-            }
+            // カウントダウン機能削除
         }
         .contentShape(Rectangle()) // Make entire area tappable
         .onTapGesture {
@@ -194,15 +183,8 @@ struct RecordingTabView: View {
         if viewModel.isRecording {
             viewModel.stopRecording()
         } else {
-            // Start recording based on mode
-            switch recordingSettings.recordingStartMode {
-            case .instantStart:
-                viewModel.startRecording()
-            case .countdown:
-                viewModel.showingCountdown = true
-            case .manual:
-                viewModel.startManualRecording()
-            }
+            // 手動録音のみ
+            viewModel.startManualRecording()
         }
     }
 }

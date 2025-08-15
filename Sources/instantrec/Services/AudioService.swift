@@ -48,6 +48,9 @@ class AudioService: ObservableObject {
     @Published var permissionGranted = false
     @Published var audioLevel: Float = 0.0
     
+    // メモリ監視システム
+    private let memoryMonitor = MemoryMonitorService.shared
+    
     // デバッグ用: 音声レベルを直接設定
     func setTestAudioLevel(_ level: Float) {
         DispatchQueue.main.async {
@@ -473,7 +476,13 @@ class AudioService: ObservableObject {
     // MARK: - AVAudioEngine Recording
     
     /// AVAudioEngineを使用した高品質録音
-    private func startEngineRecording(url: URL) -> URL? {
+    private func startEngineRecording(url: URL, isLongRecording: Bool = false) -> URL? {
+        // 長時間録音の場合は強化監視を開始
+        if isLongRecording {
+            memoryMonitor.startIntensiveMonitoring()
+            print("🖥️ Intensive memory monitoring started for long recording")
+        }
+        
         guard let engine = audioEngine,
               let inputNode = inputNode,
               let eqNode = voiceIsolationNode else {
@@ -1270,11 +1279,12 @@ class AudioService: ObservableObject {
         print("🔔 AudioSession interruption handling setup completed")
     }
     
-    /// AudioSession中断通知の処理
+    /// AudioSession中断通知の処理（強化版）
     @objc private func handleAudioSessionInterruption(notification: Notification) {
         guard let userInfo = notification.userInfo,
               let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            print("❌ Invalid interruption notification")
             return
         }
         
@@ -1282,22 +1292,57 @@ class AudioService: ObservableObject {
         
         switch type {
         case .began:
-            print("🚫 Audio session interrupted - recording will be paused")
-            // 録音中断を記録（自動的にAVAudioRecorderが一時停止）
+            handleInterruptionBegan(userInfo: userInfo)
             
         case .ended:
-            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
-                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-                if options.contains(.shouldResume) {
-                    print("🔄 Audio session interruption ended - attempting to resume")
-                    resumeAudioSessionAfterInterruption()
-                } else {
-                    print("⚠️ Audio session interruption ended but should not resume")
-                }
-            }
+            handleInterruptionEnded(userInfo: userInfo)
+            
         @unknown default:
             print("⚠️ Unknown interruption type: \(type)")
             break
+        }
+    }
+    
+    /// 中断開始処理
+    private func handleInterruptionBegan(userInfo: [AnyHashable: Any]) {
+        print("🚫 Audio session interrupted - recording will be paused")
+        
+        // 中断の原因を特定
+        if let reasonValue = userInfo[AVAudioSessionInterruptionReasonKey] as? UInt,
+           let reason = AVAudioSession.InterruptionReason(rawValue: reasonValue) {
+            print("🚫 Interruption reason: \(reason)")
+        }
+        
+        // 録音状態の記録
+        let wasRecording = (audioRecorder?.isRecording ?? false) || isEngineRecording
+        if wasRecording {
+            print("📝 Recording was active during interruption")
+            // 中断前の状態を記録（復帰時に使用）
+            UserDefaults.standard.set(true, forKey: "wasRecordingBeforeInterruption")
+        }
+        
+        // AudioEngine録音の場合は手動停止が必要
+        if isEngineRecording {
+            print("🛑 Stopping AudioEngine due to interruption")
+            stopEngineRecording()
+        }
+    }
+    
+    /// 中断終了処理
+    private func handleInterruptionEnded(userInfo: [AnyHashable: Any]) {
+        print("🔄 Audio session interruption ended")
+        
+        if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+            
+            if options.contains(.shouldResume) {
+                print("🔄 System suggests resuming audio")
+                
+                // リトライ機能付きの復帰処理
+                resumeAudioSessionWithRetry(maxRetries: 3)
+            } else {
+                print("⚠️ System does not suggest resuming audio")
+            }
         }
     }
     
@@ -1332,21 +1377,168 @@ class AudioService: ObservableObject {
     }
     
     /// 中断後のAudioSession復帰処理
-    private func resumeAudioSessionAfterInterruption() {
-        do {
-            try AVAudioSession.sharedInstance().setActive(true)
-            print("✅ AudioSession reactivated after interruption")
-            
-            // 録音が継続されているかチェック
-            if let recorder = audioRecorder, !recorder.isRecording {
-                print("🔄 Attempting to resume recording after interruption")
-                let resumed = recorder.record()
-                print("📱 Recording resume result: \(resumed)")
-            }
-            
-        } catch {
-            print("❌ Failed to reactivate AudioSession after interruption: \(error)")
+    /// リトライ機能付きAudioSession復帰処理
+    private func resumeAudioSessionWithRetry(maxRetries: Int, currentRetry: Int = 0) {
+        guard currentRetry < maxRetries else {
+            print("❌ Failed to resume after \(maxRetries) retries")
+            // 最終的に失敗した場合の処理
+            handleRecordingRecoveryFailure()
+            return
         }
+        
+        print("🔄 Attempting to resume audio session (retry \(currentRetry + 1)/\(maxRetries))")
+        
+        // 遅延実行（システムが安定するまで待機）
+        DispatchQueue.main.asyncAfter(deadline: .now() + Double(currentRetry) * 0.5) {
+            do {
+                // AudioSession再アクティベート
+                try self.setupLongRecordingAudioSession()
+                print("✅ AudioSession reactivated after interruption")
+                
+                // 録音復帰処理
+                self.attemptRecordingResume()
+                
+            } catch {
+                print("❌ Retry \(currentRetry + 1) failed: \(error.localizedDescription)")
+                
+                // 次のリトライを実行
+                self.resumeAudioSessionWithRetry(maxRetries: maxRetries, currentRetry: currentRetry + 1)
+            }
+        }
+    }
+    
+    /// 録音復帰処理
+    private func attemptRecordingResume() {
+        let wasRecording = UserDefaults.standard.bool(forKey: "wasRecordingBeforeInterruption")
+        
+        guard wasRecording else {
+            print("📝 No recording to resume")
+            return
+        }
+        
+        // 従来録音の復帰
+        if let recorder = audioRecorder, !recorder.isRecording {
+            print("🔄 Attempting to resume AVAudioRecorder")
+            let resumed = recorder.record()
+            print("📱 AVAudioRecorder resume result: \(resumed)")
+            
+            if resumed {
+                print("✅ Recording successfully resumed")
+                UserDefaults.standard.removeObject(forKey: "wasRecordingBeforeInterruption")
+            }
+        }
+        
+        // AudioEngine録音の復帰（必要に応じて再初期化）
+        if !isEngineRecording && wasRecording {
+            print("🔄 Attempting to restart AudioEngine recording")
+            // 必要に応じて録音を再開
+            // startEngineRecording(url: lastRecordingURL) などの実装
+        }
+    }
+    
+    /// 録音復帰失敗時の処理
+    private func handleRecordingRecoveryFailure() {
+        print("❌ Recording recovery failed completely")
+        
+        // ユーザーに通知（後で実装）
+        // NotificationCenter.default.post(name: .recordingRecoveryFailed, object: nil)
+        
+        // 状態をクリア
+        UserDefaults.standard.removeObject(forKey: "wasRecordingBeforeInterruption")
+        
+        // 必要に応じて録音を完全に停止
+        stopRecording()
+    }
+    
+    // MARK: - システムリソース監視
+    
+    /// システムリソース全体の監視開始
+    func startSystemResourceMonitoring() {
+        // メモリ監視はすでに開始済み
+        startBatteryMonitoring()
+        startDiskSpaceMonitoring()
+        print("🔋 System resource monitoring started")
+    }
+    
+    /// バッテリー監視開始
+    private func startBatteryMonitoring() {
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(batteryLevelChanged),
+            name: UIDevice.batteryLevelDidChangeNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(batteryStateChanged),
+            name: UIDevice.batteryStateDidChangeNotification,
+            object: nil
+        )
+    }
+    
+    /// バッテリー残量変化通知
+    @objc private func batteryLevelChanged() {
+        let level = UIDevice.current.batteryLevel
+        print("🔋 Battery level: \(Int(level * 100))%")
+        
+        // 低バッテリー警告（20%以下）
+        if level < 0.2 && level > 0.0 {
+            print("⚠️ Low battery warning for long recording")
+            // 必要に応じてユーザーに警告
+        }
+    }
+    
+    /// バッテリー状態変化通知
+    @objc private func batteryStateChanged() {
+        let state = UIDevice.current.batteryState
+        print("🔋 Battery state changed: \(state)")
+        
+        switch state {
+        case .charging:
+            print("🔌 Device is charging - good for long recording")
+        case .unplugged:
+            print("🔋 Device unplugged - monitor battery usage")
+        case .full:
+            print("🔋 Battery full - optimal for long recording")
+        case .unknown:
+            print("🔋 Battery state unknown")
+        @unknown default:
+            break
+        }
+    }
+    
+    /// ディスク容量監視開始
+    private func startDiskSpaceMonitoring() {
+        Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { _ in
+            self.checkDiskSpaceAndWarn()
+        }
+    }
+    
+    /// ディスク容量チェックと警告
+    private func checkDiskSpaceAndWarn() {
+        let availableSpace = getAvailableDiskSpace()
+        let requiredSpace: Int64 = 500 * 1024 * 1024 // 500MB
+        
+        if availableSpace < requiredSpace {
+            print("⚠️ Low disk space warning: \(availableSpace / 1024 / 1024)MB available")
+            // ユーザーに警告を表示
+        }
+    }
+    
+    /// 利用可能ディスク容量取得
+    private func getAvailableDiskSpace() -> Int64 {
+        do {
+            let attributes = try FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory())
+            if let freeSize = attributes[.systemFreeSize] as? NSNumber {
+                return freeSize.int64Value
+            }
+        } catch {
+            print("❌ Failed to get disk space: \(error)")
+        }
+        return 0
     }
     
     // MARK: - メモリ管理・最適化
@@ -1479,8 +1671,45 @@ class AudioService: ObservableObject {
         print("📱 Background task ended")
     }
     
+    /// 長時間録音用のAudioSession最適化設定
+    private func setupLongRecordingAudioSession() throws {
+        let session = AVAudioSession.sharedInstance()
+        
+        print("🔊 Setting up optimized audio session for long recording")
+        
+        // 長時間録音用の最適設定
+        try session.setCategory(.playAndRecord,
+                               mode: .default,
+                               options: [.defaultToSpeaker,
+                                       .allowBluetoothA2DP,
+                                       .allowAirPlay])
+        
+        // 長時間録音用バッファ設定（メモリ使用量最適化）
+        try session.setPreferredIOBufferDuration(0.1) // 100msバッファ
+        try session.setPreferredSampleRate(44100) // 高品質サンプルレート
+        
+        // モノラル録音でメモリ効率化
+        try session.setPreferredInputNumberOfChannels(1)
+        try session.setPreferredOutputNumberOfChannels(2)
+        
+        // セッションアクティベート
+        try session.setActive(true)
+        
+        print("✅ Long recording audio session configured:")
+        print("   - Buffer Duration: \(session.ioBufferDuration)s")
+        print("   - Sample Rate: \(session.sampleRate)Hz")
+        print("   - Input Channels: \(session.inputNumberOfChannels)")
+        print("   - Output Channels: \(session.outputNumberOfChannels)")
+    }
+    
     /// 録音開始時にバックグラウンドタスクを自動開始
     func startRecordingWithBackgroundSupport(at url: URL, settings: [String: Any]) throws {
+        // メモリ監視開始
+        memoryMonitor.startRecordingMonitoring()
+        
+        // 長時間録音用AudioSession設定
+        try setupLongRecordingAudioSession()
+        
         // バックグラウンドタスク開始
         startBackgroundTask()
         
@@ -1499,11 +1728,16 @@ class AudioService: ObservableObject {
         // バックグラウンドタスク終了
         endBackgroundTask()
         
+        // メモリ監視停止
+        memoryMonitor.stopRecordingMonitoring()
+        
         print("🎙️ Recording stopped and background task ended")
     }
     
     deinit {
         NotificationCenter.default.removeObserver(self)
+        memoryMonitor.stopRecordingMonitoring()
+        UIDevice.current.isBatteryMonitoringEnabled = false
         endBackgroundTask()
     }
 }

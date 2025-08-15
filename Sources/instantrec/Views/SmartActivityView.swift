@@ -670,6 +670,9 @@ struct SystemShareSheet: UIViewControllerRepresentable {
             return ["No transcription available"]
         }
         
+        // フィルタリングされた文字起こしテキストを使用
+        let filteredTranscription = recording.getDisplayText(mode: .plainText)
+        
         let formattedText = """
 📄 Recording Transcription
 🎙️ \(recording.displayName)
@@ -677,7 +680,7 @@ struct SystemShareSheet: UIViewControllerRepresentable {
 ⏱️ Duration: \(formatDuration(recording.duration))
 
 📝 Transcription:
-\(transcription)
+\(filteredTranscription)
 """
         
         return [formattedText]
@@ -708,8 +711,11 @@ struct SystemShareSheet: UIViewControllerRepresentable {
             return ["No transcription available for summary"]
         }
         
+        // フィルタリングされた文字起こしテキストを使用
+        let filteredTranscription = recording.getDisplayText(mode: .plainText)
+        
         // Simple summary: first 200 characters + key info
-        let summary = String(transcription.prefix(200)) + (transcription.count > 200 ? "..." : "")
+        let summary = String(filteredTranscription.prefix(200)) + (filteredTranscription.count > 200 ? "..." : "")
         
         let formattedSummary = """
 📋 Recording Summary

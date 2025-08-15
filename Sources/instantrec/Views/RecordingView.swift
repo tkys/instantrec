@@ -347,8 +347,7 @@ struct RecordingView: View {
                                         await stopRecordingWithTranscription()
                                     }
                                 },
-                                isManualStart: (viewModel.showManualRecordButton == false && recordingSettings.recordingStartMode == .manual) || 
-                                              (recordingSettings.recordingStartMode == .countdown)
+                                isManualStart: (viewModel.showManualRecordButton == false && recordingSettings.recordingStartMode == .manual)
                             )
                             
                         }
@@ -449,18 +448,7 @@ struct RecordingView: View {
                 }
             }
             
-            // カウントダウンオーバーレイ
-            if viewModel.showingCountdown {
-                CountdownView(
-                    duration: recordingSettings.countdownDuration,
-                    onCountdownComplete: {
-                        viewModel.onCountdownComplete()
-                    },
-                    onCancel: {
-                        viewModel.onCountdownCancel()
-                    }
-                )
-            }
+            // カウントダウン機能削除
         }
         .onAppear {
             print("🎬 RecordingView onAppear - permission: \(viewModel.permissionStatus), isRecording: \(viewModel.isRecording)")
@@ -501,15 +489,8 @@ struct RecordingView: View {
             // Note: Recording processing will be handled by the ViewModel
             // Auto-processing features will be triggered from recording completion
         } else {
-            // Start recording based on mode
-            switch recordingSettings.recordingStartMode {
-            case .instantStart:
-                viewModel.startRecording()
-            case .countdown:
-                viewModel.showingCountdown = true
-            case .manual:
-                viewModel.startManualRecording()
-            }
+            // Start recording based on mode (simplified)
+            viewModel.startManualRecording()
         }
     }
     
@@ -529,16 +510,8 @@ struct RecordingView: View {
         if manual {
             viewModel.startManualRecording()
         } else {
-            // 録音開始モードに応じた処理
-            switch recordingSettings.recordingStartMode {
-            case .instantStart:
-                viewModel.startRecording()
-            case .countdown:
-                viewModel.showingCountdown = true
-                return // カウントダウン後に別途開始される
-            case .manual:
-                viewModel.startManualRecording()
-            }
+            // 録音開始（手動モードのみ）
+            viewModel.startManualRecording()
         }
     }
     

@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var showingCountdownSelection = false
     @State private var showingAIModelSelection = false
     @State private var showingAudioQualitySelection = false
+    @State private var showingLanguageSelection = false
     @State private var autoTranscriptionEnabled: Bool
     @State private var autoBackupEnabled: Bool
     
@@ -23,29 +24,19 @@ struct SettingsView: View {
             Form {
                 // Recording Behavior Section
                 Section {
-                    SettingRow(
-                        title: "Start Mode",
-                        value: recordingSettings.recordingStartMode.displayName,
-                        hasDisclosure: true,
-                        action: { showingStartModeSelection = true }
-                    )
-                    
-                    SettingRow(
-                        title: "Recording Mode", 
-                        value: "Balance",
-                        hasDisclosure: true,
-                        action: { showingRecordingModeSelection = true }
-                    )
-                    
-                    SettingRow(
-                        title: "Countdown Time",
-                        value: recordingSettings.countdownDuration.displayName,
-                        hasDisclosure: recordingSettings.recordingStartMode == .countdown,
-                        isEnabled: recordingSettings.recordingStartMode == .countdown,
-                        action: recordingSettings.recordingStartMode == .countdown ? {
-                            showingCountdownSelection = true
-                        } : nil
-                    )
+                    // 簡素化: 録音方式関連設定を削除し、シンプルなUI説明のみ
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("録音方式")
+                                .font(.body)
+                            Text("録音ボタンをタップして開始/停止")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "record.circle.fill")
+                            .foregroundColor(.red)
+                    }
                 } header: {
                     Text("Recording Behavior")
                 }
@@ -89,6 +80,20 @@ struct SettingsView: View {
                             hasDisclosure: true,
                             action: { showingAIModelSelection = true }
                         )
+                        
+                        SettingRow(
+                            title: "Language",
+                            value: whisperService.transcriptionLanguage.displayName,
+                            hasDisclosure: true,
+                            action: { showingLanguageSelection = true }
+                        )
+                        
+                        SettingRow(
+                            title: "Default Display Mode",
+                            value: "テキストのみ",
+                            hasDisclosure: true,
+                            action: { /* TODO: 実装予定 */ }
+                        )
                     }
                 } header: {
                     Text("Audio & AI")
@@ -118,20 +123,15 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            .sheet(isPresented: $showingRecordingModeSelection) {
-                RecordingModeSelectionSheet()
-            }
-            .sheet(isPresented: $showingStartModeSelection) {
-                StartModeSelectionSheet()
-            }
-            .sheet(isPresented: $showingCountdownSelection) {
-                CountdownSelectionSheet()
-            }
+            // 不要なシート削除
             .sheet(isPresented: $showingAIModelSelection) {
                 AIModelSelectionSheet()
             }
             .sheet(isPresented: $showingAudioQualitySelection) {
                 AudioQualitySelectionSheet(audioService: audioService)
+            }
+            .sheet(isPresented: $showingLanguageSelection) {
+                LanguageSelectionSheet()
             }
             .onAppear {
                 // Viewが表示される際にWhisperServiceの状態を確認
@@ -141,120 +141,7 @@ struct SettingsView: View {
     }
 }
 
-struct StartModeSelectionSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @StateObject private var recordingSettings = RecordingSettings.shared
-    @State private var selectedMode: RecordingStartMode
-    
-    init() {
-        _selectedMode = State(initialValue: RecordingSettings.shared.recordingStartMode)
-    }
-    
-    var body: some View {
-        NavigationView {
-            List {
-                ForEach(RecordingStartMode.allCases) { mode in
-                    Button(action: {
-                        selectedMode = mode
-                    }) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(mode.displayName)
-                                    .foregroundColor(.primary)
-                                    .font(.headline)
-                                Text(mode.description)
-                                    .foregroundColor(.secondary)
-                                    .font(.caption)
-                                    .lineLimit(2)
-                            }
-                            Spacer()
-                            if selectedMode == mode {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Start Mode")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        let wasChanged = recordingSettings.recordingStartMode != selectedMode
-                        recordingSettings.recordingStartMode = selectedMode
-                        
-                        if wasChanged {
-                            print("🔧 StartMode changed to: \(selectedMode.displayName)")
-                            // RecordingViewの onChange が自動的に反応する
-                        }
-                        
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
-                }
-            }
-        }
-    }
-}
-
-struct CountdownSelectionSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @StateObject private var recordingSettings = RecordingSettings.shared
-    @State private var selectedDuration: CountdownDuration
-    
-    init() {
-        _selectedDuration = State(initialValue: RecordingSettings.shared.countdownDuration)
-    }
-    
-    var body: some View {
-        NavigationView {
-            List {
-                ForEach(CountdownDuration.allCases) { duration in
-                    Button(action: {
-                        selectedDuration = duration
-                    }) {
-                        HStack {
-                            Text(duration.displayName)
-                                .foregroundColor(.primary)
-                                .font(.headline)
-                            
-                            Spacer()
-                            
-                            if selectedDuration == duration {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Countdown Time")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        recordingSettings.countdownDuration = selectedDuration
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
-                }
-            }
-        }
-    }
-}
+// 不要な設定シート削除
 
 struct AIModelSelectionSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -444,64 +331,7 @@ struct AIModelSelectionSheet: View {
     }
 }
 
-struct RecordingModeSelectionSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    
-    let recordingModes = [
-        ("Balance", "A versatile mode for all situations"),
-        ("Conversation", "Makes human voices clearer"),
-        ("Narration", "High quality with minimal noise"),
-        ("Ambient", "Records all sounds faithfully"),
-        ("Meeting", "Optimized for multiple speakers")
-    ]
-    
-    @State private var selectedMode = "Balance"
-    
-    var body: some View {
-        NavigationView {
-            List {
-                ForEach(recordingModes, id: \.0) { mode in
-                    Button(action: {
-                        selectedMode = mode.0
-                    }) {
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(mode.0)
-                                    .foregroundColor(.primary)
-                                    .font(.headline)
-                                Text(mode.1)
-                                    .foregroundColor(.secondary)
-                                    .font(.caption)
-                            }
-                            Spacer()
-                            if selectedMode == mode.0 {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Recording Mode")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        // Save selection here
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
-                }
-            }
-        }
-    }
-}
+// 録音モード選択シート削除
 
 struct AudioQualitySelectionSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -638,6 +468,110 @@ struct AudioQualitySelectionSheet: View {
                 }
             }
         }
+    }
+}
+
+struct LanguageSelectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var whisperService = WhisperKitTranscriptionService.shared
+    @State private var selectedLanguage: TranscriptionLanguage
+    
+    init() {
+        _selectedLanguage = State(initialValue: WhisperKitTranscriptionService.shared.transcriptionLanguage)
+    }
+    
+    var body: some View {
+        NavigationView {
+            List {
+                // 推奨言語セクション
+                Section {
+                    ForEach(TranscriptionLanguage.recommendedLanguages) { language in
+                        LanguageRowView(
+                            language: language,
+                            isSelected: selectedLanguage == language,
+                            action: { selectedLanguage = language }
+                        )
+                    }
+                } header: {
+                    Text("Recommended Languages")
+                } footer: {
+                    Text("These languages offer the highest transcription accuracy.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                // その他の言語セクション
+                Section {
+                    ForEach(TranscriptionLanguage.allCases.filter { !TranscriptionLanguage.recommendedLanguages.contains($0) }) { language in
+                        LanguageRowView(
+                            language: language,
+                            isSelected: selectedLanguage == language,
+                            action: { selectedLanguage = language }
+                        )
+                    }
+                } header: {
+                    Text("Other Languages")
+                }
+            }
+            .navigationTitle("Transcription Language")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        whisperService.transcriptionLanguage = selectedLanguage
+                        print("🌐 Language changed to: \(selectedLanguage.displayName)")
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+}
+
+struct LanguageRowView: View {
+    let language: TranscriptionLanguage
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text(language.flagEmoji)
+                    .font(.title2)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(language.displayName)
+                        .foregroundColor(.primary)
+                        .font(.headline)
+                    
+                    Text(language.nativeName)
+                        .foregroundColor(.secondary)
+                        .font(.caption)
+                }
+                
+                Spacer()
+                
+                if language == .auto {
+                    Text("System: \(TranscriptionLanguage.detectFromSystem().displayName)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.trailing, 8)
+                }
+                
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .foregroundColor(.blue)
+                }
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

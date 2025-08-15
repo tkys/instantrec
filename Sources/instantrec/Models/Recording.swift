@@ -180,12 +180,13 @@ final class Recording: Identifiable {
     /// タイムスタンプ付きテキストを動的生成
     var dynamicTimestampedText: String {
         let segments = self.segments
-        guard !segments.isEmpty else { return transcription ?? "" }
+        guard !segments.isEmpty else { return filterJapaneseSpeakerLabels(transcription ?? "") }
         
         return segments.map { segment in
             let startTime = WhisperKitTranscriptionService.shared.formatTimestamp(segment.startTime)
             let endTime = WhisperKitTranscriptionService.shared.formatTimestamp(segment.endTime)
-            return "[\(startTime) - \(endTime)] \(segment.text)"
+            let filteredText = filterJapaneseSpeakerLabels(segment.text)
+            return "[\(startTime) - \(endTime)] \(filteredText)"
         }.joined(separator: "\n")
     }
     
@@ -197,9 +198,10 @@ final class Recording: Identifiable {
         case .plainText:
             // プレーンテキスト: セグメントを単純結合
             if !segments.isEmpty {
-                return segments.map { $0.text }.joined(separator: " ")
+                let filteredText = segments.map { filterJapaneseSpeakerLabels($0.text) }.joined(separator: " ")
+                return filteredText
             }
-            return transcription ?? ""
+            return filterJapaneseSpeakerLabels(transcription ?? "")
             
         case .timestamped:
             // タイムスタンプ付き: [mm:ss.SSS] テキスト形式
@@ -210,10 +212,11 @@ final class Recording: Identifiable {
             if !segments.isEmpty {
                 return segments.map { segment in
                     let startTime = WhisperKitTranscriptionService.shared.formatTimestamp(segment.startTime)
-                    return "[\(startTime)] \(segment.text)"
+                    let filteredText = filterJapaneseSpeakerLabels(segment.text)
+                    return "[\(startTime)] \(filteredText)"
                 }.joined(separator: "\n")
             }
-            return timestampedTranscription ?? transcription ?? ""
+            return filterJapaneseSpeakerLabels(timestampedTranscription ?? transcription ?? "")
             
         case .segmented:
             // セグメント表示: 話題区切りで整理
@@ -224,10 +227,11 @@ final class Recording: Identifiable {
             if !segments.isEmpty {
                 return segments.enumerated().map { index, segment in
                     let duration = segment.endTime - segment.startTime
-                    return "【\(index + 1)】 (\(String(format: "%.1f", duration))秒)\n\(segment.text)"
+                    let filteredText = filterJapaneseSpeakerLabels(segment.text)
+                    return "【\(index + 1)】 (\(String(format: "%.1f", duration))秒)\n\(filteredText)"
                 }.joined(separator: "\n\n")
             }
-            return transcription ?? ""
+            return filterJapaneseSpeakerLabels(transcription ?? "")
             
         case .timeline:
             // 時系列表示: 詳細な時間情報付き
@@ -242,12 +246,77 @@ final class Recording: Identifiable {
                     let duration = segment.endTime - segment.startTime
                     return """
                     ⏱️ \(startTime) - \(endTime) (\(String(format: "%.1f", duration))s)
-                    💬 \(segment.text)
+                    💬 \(filterJapaneseSpeakerLabels(segment.text))
                     """
                 }.joined(separator: "\n\n")
             }
-            return transcription ?? ""
+            return filterJapaneseSpeakerLabels(transcription ?? "")
         }
+    }
+    
+    // MARK: - Japanese Speaker Label Filtering
+    
+    /// 日本語Whisper文字起こし時の不要な話者ラベルをフィルタリング
+    /// 例: (アナウンサー), (朝日新聞社), (山田) などを削除
+    /// 注意: (音楽), (BGM), (拍手) などの録音内容関連ラベルは保持
+    private func filterJapaneseSpeakerLabels(_ text: String) -> String {
+        // 不要な話者ラベルの正規表現パターン
+        // 人名、会社名、職業名などの話者識別ラベルを除去
+        let unwantedSpeakerPatterns = [
+            "\\(アナウンサー\\)",
+            "\\(朝日新聞社?\\)",
+            "\\(読売新聞社?\\)",
+            "\\(毎日新聞社?\\)",
+            "\\(産経新聞社?\\)",
+            "\\(日経新聞社?\\)",
+            "\\(NHK\\)",
+            "\\(記者\\)",
+            "\\(司会者?\\)",
+            "\\(進行\\)",
+            "\\(ナレーター\\)",
+            "\\(男性\\)",
+            "\\(女性\\)",
+            "\\(話者[A-Z0-9]?\\)",
+            "\\(Speaker[A-Z0-9]?\\)",
+            "\\([あ-ん][あ-ん]+\\)",  // ひらがなの名前（例: (やまだ)）
+            "\\([ア-ン][ア-ン]+\\)",  // カタカナの名前（例: (ヤマダ)）
+            "\\([一-龯][一-龯]+\\)"   // 漢字の名前（例: (山田)）
+        ]
+        
+        // 保持すべき録音内容関連ラベル（除去しない）
+        let audioContentLabels = [
+            "\\(音楽\\)",
+            "\\(BGM\\)",
+            "\\(拍手\\)",
+            "\\(笑い声\\)",
+            "\\(咳\\)",
+            "\\(ため息\\)",
+            "\\(雑音\\)",
+            "\\(ノイズ\\)",
+            "\\(無音\\)",
+            "\\(静寂\\)"
+        ]
+        
+        var filteredText = text
+        
+        // 不要な話者ラベルを除去
+        for pattern in unwantedSpeakerPatterns {
+            let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive)
+            let range = NSRange(location: 0, length: filteredText.utf16.count)
+            filteredText = regex?.stringByReplacingMatches(
+                in: filteredText,
+                options: [],
+                range: range,
+                withTemplate: ""
+            ) ?? filteredText
+        }
+        
+        // 連続する空白とトリミング
+        filteredText = filteredText
+            .replacingOccurrences(of: "  +", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        return filteredText
     }
     
     /// 利用可能な表示モードを取得
@@ -421,6 +490,107 @@ enum TranscriptionDisplayMode: String, CaseIterable, Codable {
         case .segmented: return "list.bullet.below.rectangle"
         case .timeline: return "timeline.selection"
         }
+    }
+}
+
+// MARK: - TranscriptionLanguage
+
+/// 文字起こし対象言語
+enum TranscriptionLanguage: String, CaseIterable, Codable, Identifiable {
+    var id: String { rawValue }
+    case auto = "auto"           // 自動検出
+    case japanese = "ja"         // 日本語
+    case english = "en"          // 英語
+    case chinese = "zh"          // 中国語
+    case korean = "ko"           // 韓国語
+    case spanish = "es"          // スペイン語
+    case french = "fr"           // フランス語
+    case german = "de"           // ドイツ語
+    case italian = "it"          // イタリア語
+    case portuguese = "pt"       // ポルトガル語
+    case russian = "ru"          // ロシア語
+    
+    /// 表示用の言語名
+    var displayName: String {
+        switch self {
+        case .auto: return "自動検出"
+        case .japanese: return "日本語"
+        case .english: return "英語"
+        case .chinese: return "中国語"
+        case .korean: return "韓国語"
+        case .spanish: return "スペイン語"
+        case .french: return "フランス語"
+        case .german: return "ドイツ語"
+        case .italian: return "イタリア語"
+        case .portuguese: return "ポルトガル語"
+        case .russian: return "ロシア語"
+        }
+    }
+    
+    /// ネイティブ言語名
+    var nativeName: String {
+        switch self {
+        case .auto: return "Auto Detect"
+        case .japanese: return "日本語"
+        case .english: return "English"
+        case .chinese: return "中文"
+        case .korean: return "한국어"
+        case .spanish: return "Español"
+        case .french: return "Français"
+        case .german: return "Deutsch"
+        case .italian: return "Italiano"
+        case .portuguese: return "Português"
+        case .russian: return "Русский"
+        }
+    }
+    
+    /// フラグ絵文字
+    var flagEmoji: String {
+        switch self {
+        case .auto: return "🌐"
+        case .japanese: return "🇯🇵"
+        case .english: return "🇺🇸"
+        case .chinese: return "🇨🇳"
+        case .korean: return "🇰🇷"
+        case .spanish: return "🇪🇸"
+        case .french: return "🇫🇷"
+        case .german: return "🇩🇪"
+        case .italian: return "🇮🇹"
+        case .portuguese: return "🇵🇹"
+        case .russian: return "🇷🇺"
+        }
+    }
+    
+    /// WhisperKit用の言語コード
+    var whisperKitCode: String? {
+        switch self {
+        case .auto: return nil  // 自動検出の場合はnilを返してWhisperKitに判断させる
+        default: return self.rawValue
+        }
+    }
+    
+    /// OS言語コードから自動検出
+    static func detectFromSystem() -> TranscriptionLanguage {
+        let systemLanguage = Locale.current.language.languageCode?.identifier ?? "en"
+        
+        switch systemLanguage {
+        case "ja": return .japanese
+        case "en": return .english
+        case "zh": return .chinese
+        case "ko": return .korean
+        case "es": return .spanish
+        case "fr": return .french
+        case "de": return .german
+        case "it": return .italian
+        case "pt": return .portuguese
+        case "ru": return .russian
+        default: return .auto
+        }
+    }
+    
+    /// 音声認識精度が高い推奨言語
+    static var recommendedLanguages: [TranscriptionLanguage] {
+        return [.japanese, .english, .chinese, .korean, .spanish]
     }
 }
 
