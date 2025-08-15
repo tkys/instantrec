@@ -267,6 +267,7 @@ struct SpotifyStyleRecordingCard: View {
     let isPlaying: Bool
     
     @EnvironmentObject private var themeService: AppThemeService
+    @StateObject private var whisperService = WhisperKitTranscriptionService.shared
     
     var body: some View {
         VStack(spacing: 0) {
@@ -326,6 +327,15 @@ struct SpotifyStyleRecordingCard: View {
                             iconName: "icloud",
                             text: cloudStatusText
                         )
+                    }
+                    
+                    // 文字起こし進捗表示（該当録音が処理中の場合）
+                    if whisperService.isTranscribing && isCurrentlyTranscribing {
+                        CompactTranscriptionProgressView(
+                            progress: whisperService.transcriptionProgress,
+                            stage: whisperService.transcriptionStage
+                        )
+                        .padding(.top, 8)
                     }
                 }
                 
@@ -401,6 +411,13 @@ struct SpotifyStyleRecordingCard: View {
     }
     
     // MARK: - ステータス計算
+    
+    /// 現在このカードの録音が文字起こし処理中かどうか
+    private var isCurrentlyTranscribing: Bool {
+        // 最新の録音（リストの最初）が文字起こし中の場合のみ表示
+        // より厳密には、特定の録音IDを追跡する仕組みが必要
+        return whisperService.isTranscribing && (recording.transcription?.isEmpty ?? true)
+    }
     
     private func getTranscriptionStatus() -> ProminentStatusBadge.StatusType {
         if let transcription = recording.transcription, !transcription.isEmpty {
@@ -1106,6 +1123,971 @@ struct OptimizedEmptyStateView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title). \(message)")
+    }
+}
+
+// MARK: - Transcription Progress Components
+
+/// 文字起こし進捗表示コンポーネント
+struct TranscriptionProgressView: View {
+    let progress: Float
+    let stage: String
+    let estimatedTimeRemaining: TimeInterval?
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            // プログレスバー
+            VStack(spacing: 6) {
+                HStack {
+                    Text("文字起こし中")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    
+                    Spacer()
+                    
+                    Text("\(Int(progress * 100))%")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(ListUITheme.primaryColor)
+                }
+                
+                ProgressView(value: progress, total: 1.0)
+                    .progressViewStyle(LinearProgressViewStyle(tint: ListUITheme.primaryColor))
+                    .scaleEffect(y: 2.0) // プログレスバーを太く
+            }
+            
+            // 進捗詳細
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "waveform.and.mic")
+                        .font(.caption)
+                        .foregroundColor(ListUITheme.primaryColor)
+                    
+                    Text(stage)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                if let timeRemaining = estimatedTimeRemaining {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Text("約\(Int(timeRemaining))秒")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(ListUITheme.primarySpacing)
+        .background(
+            RoundedRectangle(cornerRadius: ListUITheme.cardCornerRadius)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+        )
+    }
+}
+
+/// コンパクト版文字起こし進捗表示
+struct CompactTranscriptionProgressView: View {
+    let progress: Float
+    let stage: String
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView(value: progress, total: 1.0)
+                .progressViewStyle(LinearProgressViewStyle(tint: ListUITheme.primaryColor))
+                .frame(height: 4)
+            
+            Text(stage)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+            
+            Text("\(Int(progress * 100))%")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(ListUITheme.primaryColor)
+                .frame(width: 35, alignment: .trailing)
+        }
+    }
+}
+
+// MARK: - Transcription Display Mode Components
+
+/// 表示モード選択コンポーネント
+struct TranscriptionDisplayModeSelector: View {
+    @Binding var selectedMode: TranscriptionDisplayMode
+    let onModeChange: (TranscriptionDisplayMode) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("表示モード")
+                .font(.headline)
+                .fontWeight(.semibold)
+            
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 12) {
+                ForEach(TranscriptionDisplayMode.allCases, id: \.self) { mode in
+                    DisplayModeCard(
+                        mode: mode,
+                        isSelected: selectedMode == mode,
+                        onTap: {
+                            selectedMode = mode
+                            onModeChange(mode)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/// 表示モードカード
+struct DisplayModeCard: View {
+    let mode: TranscriptionDisplayMode
+    let isSelected: Bool
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 8) {
+                Image(systemName: mode.iconName)
+                    .font(.title2)
+                    .foregroundColor(isSelected ? .white : ListUITheme.primaryColor)
+                
+                VStack(spacing: 2) {
+                    Text(mode.displayName)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(isSelected ? .white : .primary)
+                    
+                    Text(mode.description)
+                        .font(.caption2)
+                        .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                }
+            }
+            .frame(height: 90)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? ListUITheme.primaryColor : Color(.systemGray6))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? ListUITheme.primaryColor : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(ScaleButtonStyle())
+    }
+}
+
+/// タイムスタンプ有効性インジケーター
+struct TimestampValidityIndicator: View {
+    let validity: TimestampValidity
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: validity.iconName)
+                .foregroundColor(colorForValidity(validity))
+                .font(.caption)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("タイムスタンプ: \(validity.displayName)")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                
+                if let warning = validity.warningMessage {
+                    Text(warning)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(backgroundColorForValidity(validity))
+        .cornerRadius(8)
+    }
+    
+    private func colorForValidity(_ validity: TimestampValidity) -> Color {
+        switch validity {
+        case .valid: return .green
+        case .partialValid: return .orange
+        case .invalid: return .red
+        }
+    }
+    
+    private func backgroundColorForValidity(_ validity: TimestampValidity) -> Color {
+        switch validity {
+        case .valid: return .green.opacity(0.1)
+        case .partialValid: return .orange.opacity(0.1)
+        case .invalid: return .red.opacity(0.1)
+        }
+    }
+}
+
+/// コンパクト表示モード選択（ツールバー用）
+struct CompactDisplayModeSelector: View {
+    let availableModes: [TranscriptionDisplayMode]
+    @Binding var selectedMode: TranscriptionDisplayMode
+    let onModeChange: (TranscriptionDisplayMode) -> Void
+    
+    var body: some View {
+        Menu {
+            ForEach(availableModes, id: \.self) { mode in
+                Button(action: {
+                    selectedMode = mode
+                    onModeChange(mode)
+                }) {
+                    Label(mode.displayName, systemImage: mode.iconName)
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: selectedMode.iconName)
+                    .font(.caption)
+                Text(selectedMode.displayName)
+                    .font(.caption)
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color(.systemGray6))
+            .cornerRadius(8)
+        }
+    }
+}
+
+/// 表示モード別のテキスト表示コンポーネント
+struct TranscriptionDisplayView: View {
+    let recording: Recording
+    let displayMode: TranscriptionDisplayMode
+    
+    @State private var searchText = ""
+    @State private var isSearching = false
+    @State private var searchResults: [SearchResult] = []
+    @State private var currentSearchIndex = 0
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // 検索バー
+            if isSearching {
+                TranscriptionSearchBar(
+                    searchText: $searchText,
+                    onSearchTextChange: performSearch,
+                    onPrevious: moveToPreviousResult,
+                    onNext: moveToNextResult,
+                    onClose: closeSearch,
+                    resultCount: searchResults.count,
+                    currentIndex: currentSearchIndex
+                )
+            }
+            
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        let displayText = recording.getDisplayText(mode: displayMode)
+                        
+                        if displayText.isEmpty {
+                            EmptyTranscriptionView()
+                        } else {
+                            switch displayMode {
+                            case .plainText:
+                                PlainTextView(text: displayText, searchText: searchText)
+                            case .timestamped:
+                                TimestampedTextView(text: displayText, recording: recording, searchText: searchText)
+                            case .segmented:
+                                SegmentedTextView(text: displayText, recording: recording, searchText: searchText)
+                            case .timeline:
+                                TimelineTextView(text: displayText, recording: recording, searchText: searchText)
+                            }
+                        }
+                    }
+                    .padding(ListUITheme.primarySpacing)
+                }
+                .onChange(of: currentSearchIndex) { _ in
+                    scrollToCurrentResult(proxy: proxy)
+                }
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    isSearching.toggle()
+                    if !isSearching {
+                        closeSearch()
+                    }
+                }) {
+                    Image(systemName: isSearching ? "xmark" : "magnifyingglass")
+                        .font(.title3)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Search Functions
+    
+    private func performSearch(_ query: String) {
+        guard !query.isEmpty else {
+            searchResults = []
+            currentSearchIndex = 0
+            return
+        }
+        
+        let segments = recording.segments
+        searchResults = []
+        
+        for (segmentIndex, segment) in segments.enumerated() {
+            let ranges = findOccurrences(of: query, in: segment.text)
+            for range in ranges {
+                searchResults.append(SearchResult(
+                    segmentIndex: segmentIndex,
+                    range: range,
+                    text: String(segment.text[range]),
+                    timestamp: segment.startTime
+                ))
+            }
+        }
+        
+        currentSearchIndex = searchResults.isEmpty ? 0 : 0
+    }
+    
+    private func findOccurrences(of query: String, in text: String) -> [Range<String.Index>] {
+        var ranges: [Range<String.Index>] = []
+        var searchRange = text.startIndex..<text.endIndex
+        
+        while let range = text.range(of: query, options: .caseInsensitive, range: searchRange) {
+            ranges.append(range)
+            searchRange = range.upperBound..<text.endIndex
+        }
+        
+        return ranges
+    }
+    
+    private func moveToPreviousResult() {
+        guard !searchResults.isEmpty else { return }
+        currentSearchIndex = (currentSearchIndex - 1 + searchResults.count) % searchResults.count
+    }
+    
+    private func moveToNextResult() {
+        guard !searchResults.isEmpty else { return }
+        currentSearchIndex = (currentSearchIndex + 1) % searchResults.count
+    }
+    
+    private func closeSearch() {
+        searchText = ""
+        searchResults = []
+        currentSearchIndex = 0
+        isSearching = false
+    }
+    
+    private func scrollToCurrentResult(proxy: ScrollViewReader) {
+        guard !searchResults.isEmpty else { return }
+        let result = searchResults[currentSearchIndex]
+        proxy.scrollTo("segment_\(result.segmentIndex)", anchor: .center)
+    }
+}
+
+// MARK: - Search Support Types
+
+struct SearchResult {
+    let segmentIndex: Int
+    let range: Range<String.Index>
+    let text: String
+    let timestamp: TimeInterval
+}
+
+/// 検索バー
+struct TranscriptionSearchBar: View {
+    @Binding var searchText: String
+    let onSearchTextChange: (String) -> Void
+    let onPrevious: () -> Void
+    let onNext: () -> Void
+    let onClose: () -> Void
+    let resultCount: Int
+    let currentIndex: Int
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // 検索フィールド
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+                
+                TextField("文字起こしを検索", text: $searchText)
+                    .font(.body)
+                    .onChange(of: searchText) { newValue in
+                        onSearchTextChange(newValue)
+                    }
+                
+                if !searchText.isEmpty {
+                    Button(action: {
+                        searchText = ""
+                        onSearchTextChange("")
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                            .font(.caption)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(Color(.systemGray6))
+            .cornerRadius(8)
+            
+            // 検索結果ナビゲーション
+            if resultCount > 0 {
+                HStack(spacing: 4) {
+                    Button(action: onPrevious) {
+                        Image(systemName: "chevron.up")
+                            .font(.caption)
+                    }
+                    .disabled(resultCount == 0)
+                    
+                    Text("\(currentIndex + 1)/\(resultCount)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .frame(width: 50)
+                    
+                    Button(action: onNext) {
+                        Image(systemName: "chevron.down")
+                            .font(.caption)
+                    }
+                    .disabled(resultCount == 0)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(.systemGray5))
+                .cornerRadius(6)
+            }
+            
+            // 閉じるボタン
+            Button(action: onClose) {
+                Text("完了")
+                    .font(.caption)
+                    .fontWeight(.medium)
+            }
+        }
+        .padding(.horizontal, ListUITheme.primarySpacing)
+        .padding(.vertical, 8)
+        .background(Color(.systemBackground))
+        .overlay(
+            Rectangle()
+                .fill(Color(.systemGray4))
+                .frame(height: 0.5),
+            alignment: .bottom
+        )
+    }
+}
+
+/// プレーンテキスト表示
+struct PlainTextView: View {
+    let text: String
+    let searchText: String?
+    
+    init(text: String, searchText: String? = nil) {
+        self.text = text
+        self.searchText = searchText
+    }
+    
+    var body: some View {
+        if let searchText = searchText, !searchText.isEmpty {
+            HighlightedText(text: text, searchText: searchText)
+                .font(.body)
+                .lineSpacing(4)
+        } else {
+            Text(text)
+                .font(.body)
+                .lineSpacing(4)
+                .textSelection(.enabled)
+        }
+    }
+}
+
+/// ハイライト表示テキスト
+struct HighlightedText: View {
+    let text: String
+    let searchText: String
+    
+    var body: some View {
+        let attributedString = highlightText(text, searchText: searchText)
+        Text(AttributedString(attributedString))
+            .textSelection(.enabled)
+    }
+    
+    private func highlightText(_ text: String, searchText: String) -> NSAttributedString {
+        let attributedString = NSMutableAttributedString(string: text)
+        let range = NSRange(location: 0, length: text.count)
+        
+        // デフォルトの属性
+        attributedString.addAttribute(.foregroundColor, value: UIColor.label, range: range)
+        
+        // 検索語句をハイライト
+        let searchRange = NSRange(location: 0, length: text.count)
+        let regex = try? NSRegularExpression(pattern: NSRegularExpression.escapedPattern(for: searchText), options: .caseInsensitive)
+        
+        regex?.enumerateMatches(in: text, options: [], range: searchRange) { match, _, _ in
+            if let matchRange = match?.range {
+                attributedString.addAttribute(.backgroundColor, value: UIColor.systemYellow, range: matchRange)
+                attributedString.addAttribute(.foregroundColor, value: UIColor.black, range: matchRange)
+            }
+        }
+        
+        return attributedString
+    }
+}
+
+/// タイムスタンプ付きテキスト表示
+struct TimestampedTextView: View {
+    let text: String
+    let recording: Recording?
+    let searchText: String?
+    
+    init(text: String, recording: Recording? = nil, searchText: String? = nil) {
+        self.text = text
+        self.recording = recording
+        self.searchText = searchText
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(text.components(separatedBy: "\n").enumerated().map { IdentifiableString(index: $0.offset, value: $0.element) }, id: \.id) { item in
+                if !item.value.isEmpty {
+                    TimestampedLineView(line: item.value, recording: recording, searchText: searchText)
+                        .id("segment_\(item.index)")
+                }
+            }
+        }
+    }
+}
+
+struct IdentifiableString: Identifiable {
+    let id = UUID()
+    let index: Int
+    let value: String
+}
+
+struct TimestampedLineView: View {
+    let line: String
+    let recording: Recording?
+    let searchText: String?
+    
+    @StateObject private var playbackManager = PlaybackManager.shared
+    
+    init(line: String, recording: Recording? = nil, searchText: String? = nil) {
+        self.line = line
+        self.recording = recording
+        self.searchText = searchText
+    }
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            if let timestampMatch = line.range(of: #"\[([\d:\.]+)\]"#, options: .regularExpression) {
+                let timestamp = String(line[timestampMatch])
+                let content = String(line[line.index(timestampMatch.upperBound, offsetBy: 1)...])
+                
+                // タップ可能なタイムスタンプ
+                Button(action: {
+                    if let recording = recording,
+                       let timeInSeconds = parseTimestamp(timestamp) {
+                        seekToTimestamp(timeInSeconds)
+                    }
+                }) {
+                    Text(timestamp)
+                        .font(.caption.monospaced())
+                        .foregroundColor(isCurrentTimestamp(timestamp) ? .white : ListUITheme.primaryColor)
+                        .frame(width: 80, alignment: .leading)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(isCurrentTimestamp(timestamp) ? ListUITheme.primaryColor : ListUITheme.primaryColor.opacity(0.1))
+                        )
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(recording == nil)
+                
+                if let searchText = searchText, !searchText.isEmpty {
+                    HighlightedText(text: content, searchText: searchText)
+                        .font(.body)
+                        .lineSpacing(2)
+                } else {
+                    Text(content)
+                        .font(.body)
+                        .lineSpacing(2)
+                        .textSelection(.enabled)
+                }
+            } else {
+                if let searchText = searchText, !searchText.isEmpty {
+                    HighlightedText(text: line, searchText: searchText)
+                        .font(.body)
+                } else {
+                    Text(line)
+                        .font(.body)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+    
+    // MARK: - Timestamp Navigation
+    
+    private func parseTimestamp(_ timestamp: String) -> TimeInterval? {
+        // [mm:ss.SSS] または [mm:ss] 形式を解析
+        let cleanTimestamp = timestamp.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        let components = cleanTimestamp.components(separatedBy: ":")
+        
+        guard components.count >= 2 else { return nil }
+        
+        let minutes = Double(components[0]) ?? 0
+        let secondsComponent = components[1].components(separatedBy: ".")
+        let seconds = Double(secondsComponent[0]) ?? 0
+        let milliseconds = secondsComponent.count > 1 ? (Double(secondsComponent[1]) ?? 0) / 1000 : 0
+        
+        return (minutes * 60) + seconds + milliseconds
+    }
+    
+    private func seekToTimestamp(_ timeInSeconds: TimeInterval) {
+        guard let recording = recording else { return }
+        
+        // レコーディングが再生中でない場合は再生を開始
+        if !playbackManager.isPlayingRecording(recording) {
+            playbackManager.play(recording: recording)
+        }
+        
+        // 指定時間にシーク
+        let progress = timeInSeconds / recording.duration
+        playbackManager.seek(to: Float(progress))
+        
+        // ハプティックフィードバック
+        let impactGenerator = UIImpactFeedbackGenerator(style: .light)
+        impactGenerator.impactOccurred()
+        
+        print("🎯 Seeking to timestamp: \(timeInSeconds)s (\(Int(progress * 100))%)")
+    }
+    
+    private func isCurrentTimestamp(_ timestamp: String) -> Bool {
+        guard let recording = recording,
+              playbackManager.isPlayingRecording(recording),
+              let timestampSeconds = parseTimestamp(timestamp) else {
+            return false
+        }
+        
+        let currentTime = playbackManager.playbackProgress * Double(recording.duration)
+        let threshold: TimeInterval = 2.0 // 2秒の許容範囲
+        
+        return abs(currentTime - timestampSeconds) <= threshold
+    }
+}
+
+/// セグメント表示
+struct SegmentedTextView: View {
+    let text: String
+    let recording: Recording?
+    let searchText: String?
+    
+    init(text: String, recording: Recording? = nil, searchText: String? = nil) {
+        self.text = text
+        self.recording = recording
+        self.searchText = searchText
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(text.components(separatedBy: "\n\n").enumerated().map { IdentifiableString(index: $0.offset, value: $0.element) }, id: \.id) { item in
+                if !item.value.isEmpty {
+                    SegmentCardView(segment: item.value, recording: recording, searchText: searchText)
+                        .id("segment_\(item.index)")
+                }
+            }
+        }
+    }
+}
+
+struct SegmentCardView: View {
+    let segment: String
+    let recording: Recording?
+    let searchText: String?
+    
+    @StateObject private var playbackManager = PlaybackManager.shared
+    
+    init(segment: String, recording: Recording? = nil, searchText: String? = nil) {
+        self.segment = segment
+        self.recording = recording
+        self.searchText = searchText
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            let lines = segment.components(separatedBy: "\n")
+            if lines.count >= 2 {
+                // セグメントヘッダー（クリック可能）
+                Button(action: {
+                    if let duration = extractDurationFromHeader(lines[0]) {
+                        seekToSegmentStart(duration)
+                    }
+                }) {
+                    HStack {
+                        Text(lines[0])
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(ListUITheme.primaryColor)
+                        
+                        if recording != nil {
+                            Image(systemName: "play.circle.fill")
+                                .font(.caption)
+                                .foregroundColor(ListUITheme.primaryColor)
+                        }
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(recording == nil)
+                
+                // セグメント本文
+                if let searchText = searchText, !searchText.isEmpty {
+                    HighlightedText(text: lines[1], searchText: searchText)
+                        .font(.body)
+                        .lineSpacing(2)
+                } else {
+                    Text(lines[1])
+                        .font(.body)
+                        .lineSpacing(2)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color(.systemGray6).opacity(0.5))
+        .cornerRadius(8)
+    }
+    
+    private func extractDurationFromHeader(_ header: String) -> TimeInterval? {
+        // 【1】 (5.2秒) 形式からセグメント番号を抽出し、開始時間を推定
+        let pattern = #"【(\d+)】\s*\(([\d\.]+)秒\)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: header, range: NSRange(header.startIndex..., in: header)) else {
+            return nil
+        }
+        
+        let segmentNumber = Int(String(header[Range(match.range(at: 1), in: header)!])) ?? 1
+        let segmentDuration = Double(String(header[Range(match.range(at: 2), in: header)!])) ?? 0
+        
+        // 簡易的な開始時間推定（実際のタイムスタンプがない場合）
+        let estimatedStartTime = Double(segmentNumber - 1) * segmentDuration
+        return estimatedStartTime
+    }
+    
+    private func seekToSegmentStart(_ estimatedStartTime: TimeInterval) {
+        guard let recording = recording else { return }
+        
+        if !playbackManager.isPlayingRecording(recording) {
+            playbackManager.play(recording: recording)
+        }
+        
+        let progress = estimatedStartTime / recording.duration
+        playbackManager.seek(to: Float(progress))
+        
+        let impactGenerator = UIImpactFeedbackGenerator(style: .light)
+        impactGenerator.impactOccurred()
+        
+        print("🎯 Seeking to segment start: \(estimatedStartTime)s")
+    }
+}
+
+/// 時系列表示
+struct TimelineTextView: View {
+    let text: String
+    let recording: Recording?
+    let searchText: String?
+    
+    init(text: String, recording: Recording? = nil, searchText: String? = nil) {
+        self.text = text
+        self.recording = recording
+        self.searchText = searchText
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(text.components(separatedBy: "\n\n").enumerated().map { IdentifiableString(index: $0.offset, value: $0.element) }, id: \.id) { item in
+                if !item.value.isEmpty {
+                    TimelineItemView(item: item.value, recording: recording, searchText: searchText)
+                        .id("segment_\(item.index)")
+                }
+            }
+        }
+    }
+}
+
+struct TimelineItemView: View {
+    let item: String
+    let recording: Recording?
+    let searchText: String?
+    
+    @StateObject private var playbackManager = PlaybackManager.shared
+    
+    init(item: String, recording: Recording? = nil, searchText: String? = nil) {
+        self.item = item
+        self.recording = recording
+        self.searchText = searchText
+    }
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // タイムライン線（クリック可能）
+            Button(action: {
+                if let startTime = extractTimelineTimestamp() {
+                    seekToTimelineTimestamp(startTime)
+                }
+            }) {
+                VStack {
+                    Circle()
+                        .fill(isCurrentTimelinePoint() ? .white : ListUITheme.primaryColor)
+                        .frame(width: 8, height: 8)
+                        .overlay(
+                            Circle()
+                                .stroke(ListUITheme.primaryColor, lineWidth: 2)
+                                .opacity(isCurrentTimelinePoint() ? 1 : 0)
+                        )
+                    Rectangle()
+                        .fill(ListUITheme.primaryColor.opacity(0.3))
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
+                }
+            }
+            .buttonStyle(PlainButtonStyle())
+            .frame(width: 8)
+            .disabled(recording == nil)
+            
+            // コンテンツ
+            VStack(alignment: .leading, spacing: 6) {
+                let lines = item.components(separatedBy: "\n")
+                ForEach(lines, id: \.self) { line in
+                    if line.hasPrefix("⏱️") {
+                        Button(action: {
+                            if let startTime = extractTimelineTimestamp() {
+                                seekToTimelineTimestamp(startTime)
+                            }
+                        }) {
+                            Text(line)
+                                .font(.caption.monospaced())
+                                .foregroundColor(isCurrentTimelinePoint() ? .white : ListUITheme.primaryColor)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(isCurrentTimelinePoint() ? ListUITheme.primaryColor : ListUITheme.primaryColor.opacity(0.1))
+                                )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .disabled(recording == nil)
+                    } else if line.hasPrefix("💬") {
+                        let content = String(line.dropFirst(2))
+                        if let searchText = searchText, !searchText.isEmpty {
+                            HighlightedText(text: content, searchText: searchText)
+                                .font(.body)
+                                .lineSpacing(2)
+                        } else {
+                            Text(content)
+                                .font(.body)
+                                .lineSpacing(2)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.bottom, 8)
+    }
+    
+    private func extractTimelineTimestamp() -> TimeInterval? {
+        let lines = item.components(separatedBy: "\n")
+        for line in lines {
+            if line.hasPrefix("⏱️") {
+                // "⏱️ 00:30.5 - 00:45.2 (14.7s)" 形式から開始時間を抽出
+                let pattern = #"(\d+):(\d+)\.(\d+)"#
+                guard let regex = try? NSRegularExpression(pattern: pattern),
+                      let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) else {
+                    continue
+                }
+                
+                let minutes = Double(String(line[Range(match.range(at: 1), in: line)!])) ?? 0
+                let seconds = Double(String(line[Range(match.range(at: 2), in: line)!])) ?? 0
+                let deciseconds = Double(String(line[Range(match.range(at: 3), in: line)!])) ?? 0
+                
+                return (minutes * 60) + seconds + (deciseconds / 10)
+            }
+        }
+        return nil
+    }
+    
+    private func seekToTimelineTimestamp(_ timeInSeconds: TimeInterval) {
+        guard let recording = recording else { return }
+        
+        if !playbackManager.isPlayingRecording(recording) {
+            playbackManager.play(recording: recording)
+        }
+        
+        let progress = timeInSeconds / recording.duration
+        playbackManager.seek(to: Float(progress))
+        
+        let impactGenerator = UIImpactFeedbackGenerator(style: .medium)
+        impactGenerator.impactOccurred()
+        
+        print("🎯 Seeking to timeline timestamp: \(timeInSeconds)s")
+    }
+    
+    private func isCurrentTimelinePoint() -> Bool {
+        guard let recording = recording,
+              playbackManager.isPlayingRecording(recording),
+              let timestamp = extractTimelineTimestamp() else {
+            return false
+        }
+        
+        let currentTime = playbackManager.playbackProgress * Double(recording.duration)
+        let threshold: TimeInterval = 3.0 // 3秒の許容範囲
+        
+        return abs(currentTime - timestamp) <= threshold
+    }
+}
+
+/// 空の文字起こし表示
+struct EmptyTranscriptionView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 48))
+                .foregroundColor(.secondary)
+            
+            VStack(spacing: 8) {
+                Text("文字起こし結果なし")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Text("この録音にはまだ文字起こし結果がありません")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

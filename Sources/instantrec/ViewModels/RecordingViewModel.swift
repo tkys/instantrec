@@ -324,6 +324,17 @@ class RecordingViewModel: ObservableObject {
                 await MainActor.run {
                     recording.transcription = whisperService.transcriptionText
                     recording.transcriptionDate = Date()
+                    
+                    // タイムスタンプデータの自動保存（常時実行）
+                    if let timestampedText = whisperService.lastTranscriptionTimestamps {
+                        recording.timestampedTranscription = timestampedText
+                        print("📊 Saved timestamped transcription: \(timestampedText.count) chars")
+                    }
+                    
+                    if let segments = whisperService.lastTranscriptionSegments {
+                        recording.setSegments(segments)
+                        print("📊 Saved \(segments.count) segments with timestamps")
+                    }
                     recording.transcriptionStatus = .completed
                     
                     do {

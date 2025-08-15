@@ -614,8 +614,8 @@ class AudioService: ObservableObject {
             }
             
             do {
-                // 音声を増幅してから書き込み（10倍増幅）
-                let amplifiedBuffer = self.amplifyAudioBuffer(buffer, gainFactor: 25.0)
+                // 音声を増幅してから書き込み（増幅を削減：WhisperKit認識改善のため）
+                let amplifiedBuffer = self.amplifyAudioBuffer(buffer, gainFactor: 3.0)
                 try file.write(from: amplifiedBuffer)
                 
                 // 増幅効果のデバッグログ（最初の5回のみ）

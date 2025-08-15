@@ -37,3 +37,11 @@ fastlane/test_output
 
 # Claude
 .claude/
+
+# WhisperKit Models (too large for Git)
+Sources/instantrec/Resources/WhisperKitModels*/
+*.mlmodelc/
+*.mlcomputeplan.json
+
+# Development files
+test_*.swift

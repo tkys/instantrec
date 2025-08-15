@@ -15,6 +15,11 @@ struct RecordingDetailView: View {
     @State private var editedTitle = ""
     @State private var showingShareSheet = false
     @State private var isRetryingTranscription = false
+    @State private var selectedDisplayMode: TranscriptionDisplayMode = .plainText
+    
+    private var availableDisplayModes: [TranscriptionDisplayMode] {
+        recording.getAvailableDisplayModes()
+    }
     
     var body: some View {
         ScrollView {
@@ -139,6 +144,24 @@ struct RecordingDetailView: View {
                             .font(.caption)
                         }
                         
+                        // タイムスタンプ有効性インジケーター
+                        if recording.timestampValidity != .valid {
+                            TimestampValidityIndicator(validity: recording.timestampValidity)
+                        }
+                        
+                        // Display Mode Selector (only when not editing and multiple modes available)
+                        if !isEditingTranscription && availableDisplayModes.count > 1 {
+                            CompactDisplayModeSelector(
+                                availableModes: availableDisplayModes,
+                                selectedMode: $selectedDisplayMode,
+                                onModeChange: { newMode in
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        selectedDisplayMode = newMode
+                                    }
+                                }
+                            )
+                        }
+                        
                         if isEditingTranscription {
                             VStack(alignment: .leading, spacing: HierarchicalSpacing.level3) {
                                 TextEditor(text: $editedTranscription)
@@ -171,9 +194,11 @@ struct RecordingDetailView: View {
                                 }
                             }
                         } else {
-                            Text(transcription)
-                                .font(.body)
-                                .textSelection(.enabled)
+                            // Use TranscriptionDisplayView for different display modes
+                            TranscriptionDisplayView(
+                                recording: recording,
+                                displayMode: selectedDisplayMode
+                            )
                         }
                     }
                     .padding(.horizontal, HierarchicalSpacing.level3)
@@ -283,17 +308,32 @@ struct RecordingDetailView: View {
     
     private func saveTranscription() {
         withAnimation(.easeInOut(duration: 0.2)) {
+            // オリジナルを保存（初回編集時のみ）
             if recording.originalTranscription == nil {
                 recording.originalTranscription = recording.transcription
+                recording.originalSegmentsData = recording.segmentsData
             }
             
+            // 編集の影響度を分析
+            let originalText = recording.originalTranscription ?? ""
+            recording.analyzeEditImpact(originalText: originalText, newText: editedTranscription)
+            
+            // 文字起こし結果を更新
             recording.transcription = editedTranscription
+            
+            // 表示モードを利用可能なものに調整
+            let newAvailableModes = recording.getAvailableDisplayModes()
+            if !newAvailableModes.contains(selectedDisplayMode) {
+                selectedDisplayMode = newAvailableModes.first ?? .plainText
+            }
+            
             isEditingTranscription = false
             
             do {
                 try modelContext.save()
+                print("✅ Transcription saved with validity: \(recording.timestampValidity)")
             } catch {
-                print("Failed to save transcription: \(error)")
+                print("❌ Failed to save transcription: \(error)")
             }
         }
     }

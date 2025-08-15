@@ -13,10 +13,29 @@ struct RecordingsListView: View {
     @State private var recordingToShare: Recording?
     @State private var selectedRecording: Recording?
     @State private var showingStatusHelp = false
+    
+    // 文字起こし進捗表示用
+    @StateObject private var whisperService = WhisperKitTranscriptionService.shared
 
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
+                // 文字起こし進捗表示（実行中のみ表示）
+                if whisperService.isTranscribing {
+                    TranscriptionProgressView(
+                        progress: whisperService.transcriptionProgress,
+                        stage: whisperService.transcriptionStage,
+                        estimatedTimeRemaining: whisperService.estimatedTimeRemaining
+                    )
+                    .padding(.horizontal, HierarchicalSpacing.level3)
+                    .padding(.top, HierarchicalSpacing.level4)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)).combined(with: .scale(scale: 0.95)),
+                        removal: .opacity.combined(with: .move(edge: .top))
+                    ))
+                    .animation(.easeInOut(duration: 0.3), value: whisperService.isTranscribing)
+                }
+                
                 ScrollView {
                     LazyVStack(spacing: HierarchicalSpacing.level2) {
                         ForEach(recordings) { recording in
