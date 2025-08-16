@@ -1,5 +1,21 @@
 import SwiftUI
 
+// MARK: - Stub Views
+
+struct RecordingModeSelectionView: View {
+    @Binding var isPresented: Bool
+    
+    var body: some View {
+        VStack {
+            Text("Recording Mode Selection")
+            Button("Continue") {
+                isPresented = false
+            }
+        }
+        .padding()
+    }
+}
+
 struct SettingsView: View {
     @StateObject private var recordingSettings = RecordingSettings.shared
     @StateObject private var driveService = GoogleDriveService.shared
@@ -259,7 +275,7 @@ struct AIModelSelectionSheet: View {
         if hasError {
             return .error
         } else if isDownloading {
-            return .downloading(progress: progress)
+            return .downloading(progress: Float(progress))
         } else if isDownloaded {
             return .downloaded
         } else {

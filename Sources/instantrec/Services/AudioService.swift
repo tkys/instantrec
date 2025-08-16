@@ -48,6 +48,9 @@ class AudioService: ObservableObject {
     @Published var permissionGranted = false
     @Published var audioLevel: Float = 0.0
     
+    // ログ出力制御用カウンター
+    private var adaptiveGainLogCount = 0
+    
     // メモリ監視システム
     private let memoryMonitor = MemoryMonitorService.shared
     
@@ -449,16 +452,47 @@ class AudioService: ObservableObject {
         }
     }
 
+    // MARK: - Enhanced Recording with Error Handling
+    
     func startRecording(fileName: String) -> URL? {
-        guard permissionGranted else {
-            print("❌ Microphone permission not granted")
+        do {
+            return try startRecordingWithErrorHandling(fileName: fileName)
+        } catch {
+            print("❌ Recording failed: \(error.localizedDescription)")
+            // エラー通知をポスト
+            NotificationCenter.default.post(
+                name: .audioServiceRecordingError,
+                object: self,
+                userInfo: ["error": error]
+            )
             return nil
         }
+    }
+    
+    private func startRecordingWithErrorHandling(fileName: String) throws -> URL {
+        // Pre-flight checks with specific error types
+        guard permissionGranted else {
+            throw AudioServiceError.permissionDenied
+        }
         
-        // ディスク容量チェック
-        guard checkAvailableDiskSpace() else {
-            print("❌ Insufficient disk space for recording")
-            return nil
+        guard !isRecording else {
+            throw AudioServiceError.recordingInProgress
+        }
+        
+        // AudioSession利用可能性チェック
+        let session = AVAudioSession.sharedInstance()
+        guard session.isInputAvailable else {
+            throw AudioServiceError.microphoneNotAvailable
+        }
+        
+        // ディスク容量の詳細チェック
+        let availableSpace = getAvailableDiskSpace()
+        let requiredSpace: Int64 = 100 * 1024 * 1024 // 100MB minimum
+        guard availableSpace >= requiredSpace else {
+            throw AudioServiceError.diskSpaceInsufficient(
+                available: availableSpace,
+                required: requiredSpace
+            )
         }
         
         let url = getDocumentsDirectory().appendingPathComponent(fileName)
@@ -466,11 +500,27 @@ class AudioService: ObservableObject {
         // Voice Isolation設定に基づく録音方式選択
         if voiceIsolationEnabled {
             print("🎛️ Using AVAudioEngine with Voice Isolation")
-            return startEngineRecording(url: url)
+            return try startEngineRecordingWithErrorHandling(url: url)
         } else {
             print("🎙️ Using Traditional Recording (Voice Isolation OFF)")
-            return startTraditionalRecording(fileName: fileName, url: url)
+            return try startTraditionalRecordingWithErrorHandling(fileName: fileName, url: url)
         }
+    }
+    
+    // MARK: - Error Handling Wrappers
+    
+    private func startEngineRecordingWithErrorHandling(url: URL) throws -> URL {
+        guard let result = startEngineRecording(url: url) else {
+            throw NSError(domain: "AudioService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to start engine recording"])
+        }
+        return result
+    }
+    
+    private func startTraditionalRecordingWithErrorHandling(fileName: String, url: URL) throws -> URL {
+        guard let result = startTraditionalRecording(fileName: fileName, url: url) else {
+            throw NSError(domain: "AudioService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to start traditional recording"])
+        }
+        return result
     }
     
     // MARK: - AVAudioEngine Recording
@@ -623,19 +673,24 @@ class AudioService: ObservableObject {
             }
             
             do {
-                // 音声を増幅してから書き込み（増幅を削減：WhisperKit認識改善のため）
-                let amplifiedBuffer = self.amplifyAudioBuffer(buffer, gainFactor: 3.0)
+                // 音声を動的に増幅してから書き込み（WhisperKit音楽誤認識対策）
+                let adaptiveGain = self.calculateAdaptiveGain(buffer)
+                let amplifiedBuffer = self.amplifyAudioBuffer(buffer, gainFactor: adaptiveGain)
                 try file.write(from: amplifiedBuffer)
                 
                 // 増幅効果のデバッグログ（最初の5回のみ）
                 if self.amplificationLogCount < 5 {
                     self.amplificationLogCount += 1
-                    print("🔊 Audio amplified \(self.amplificationLogCount)/5: gain=10.0x, frames=\(buffer.frameLength)")
+                    print("🔊 Audio amplified \(self.amplificationLogCount)/5: gain=15.0x, frames=\(buffer.frameLength)")
                 }
                 
-                // リアルタイム音声レベル取得（メインスレッドで更新）
-                DispatchQueue.main.async {
-                    self.updateAudioLevelFromBuffer(buffer)
+                // 最適化された音声レベル取得（フレーム制限で負荷軽減）
+                self.audioLevelUpdateCounter += 1
+                if self.audioLevelUpdateCounter >= 1024 { // 約23ms間隔（44100Hz / 1024）
+                    self.audioLevelUpdateCounter = 0
+                    DispatchQueue.main.async {
+                        self.updateAudioLevelFromBuffer(buffer)
+                    }
                 }
             } catch {
                 print("❌ Failed to write audio buffer: \(error)")
@@ -645,6 +700,84 @@ class AudioService: ObservableObject {
         print("✅ Audio tap installed successfully on EQ node")
         
         print("✅ Audio processing chain configured")
+    }
+    
+    /// 適応的ゲイン計算（音声レベルに応じて動的調整）
+    private func calculateAdaptiveGain(_ buffer: AVAudioPCMBuffer) -> Float {
+        guard let floatChannelData = buffer.floatChannelData else {
+            return 15.0 // デフォルト値
+        }
+        
+        let frameLength = Int(buffer.frameLength)
+        let channelCount = Int(buffer.format.channelCount)
+        
+        // RMSレベルを計算
+        var rmsSum: Float = 0.0
+        var maxPeak: Float = 0.0
+        var activeSamples = 0
+        let silenceThreshold: Float = 0.001
+        
+        for channel in 0..<channelCount {
+            let channelData = floatChannelData[channel]
+            for frame in 0..<frameLength {
+                let sample = abs(channelData[frame])
+                rmsSum += sample * sample
+                maxPeak = max(maxPeak, sample)
+                
+                if sample > silenceThreshold {
+                    activeSamples += 1
+                }
+            }
+        }
+        
+        let totalSamples = frameLength * channelCount
+        let rmsLevel = totalSamples > 0 ? sqrt(rmsSum / Float(totalSamples)) : 0.0
+        let activityRatio = totalSamples > 0 ? Float(activeSamples) / Float(totalSamples) : 0.0
+        
+        // 適応的ゲイン計算
+        let baseGain: Float = 15.0
+        let minGain: Float = 8.0
+        let maxGain: Float = 25.0
+        
+        var adaptiveGain: Float
+        
+        if rmsLevel < 0.001 {
+            // 非常に低いレベル → 最大増幅
+            adaptiveGain = maxGain
+        } else if rmsLevel < 0.005 {
+            // 低いレベル → 高増幅
+            adaptiveGain = baseGain + (maxGain - baseGain) * (1.0 - rmsLevel / 0.005)
+        } else if rmsLevel < 0.02 {
+            // 中程度レベル → 標準増幅
+            adaptiveGain = minGain + (baseGain - minGain) * (1.0 - (rmsLevel - 0.005) / 0.015)
+        } else {
+            // 高いレベル → 最小増幅
+            adaptiveGain = minGain
+        }
+        
+        // アクティビティ率による調整
+        if activityRatio < 0.1 {
+            // 無音が多い → さらに増幅
+            adaptiveGain *= 1.3
+        } else if activityRatio > 0.8 {
+            // 音声が豊富 → 抑制
+            adaptiveGain *= 0.8
+        }
+        
+        // 範囲制限
+        adaptiveGain = max(minGain, min(maxGain, adaptiveGain))
+        
+        // 詳細ログ（最初の数回のみ）
+        if adaptiveGainLogCount < 3 {
+            print("🔊 Adaptive gain calculation:")
+            print("   - RMS level: \(String(format: "%.4f", rmsLevel))")
+            print("   - Peak level: \(String(format: "%.4f", maxPeak))")
+            print("   - Activity ratio: \(String(format: "%.1f", activityRatio * 100))%")
+            print("   - Calculated gain: \(String(format: "%.1f", adaptiveGain))")
+            adaptiveGainLogCount += 1
+        }
+        
+        return adaptiveGain
     }
     
     /// 音声バッファの増幅処理（正規化機能付き）
@@ -683,7 +816,7 @@ class AudioService: ObservableObject {
         let targetLevel: Float = 0.8
         let normalizedGain = maxPeak > 0.001 ? min(gainFactor, targetLevel / maxPeak) : gainFactor
         
-        print("🔊 Audio amplification: original peak=\(maxPeak), gain=\(normalizedGain), target=\(targetLevel)")
+        print("🔊 Audio amplification: original peak=\(String(format: "%.4f", maxPeak)), gain=\(String(format: "%.1f", normalizedGain)), target=\(targetLevel)")
         
         for channel in 0..<channelCount {
             let inputData = floatChannelData[channel]
@@ -860,7 +993,9 @@ class AudioService: ObservableObject {
         
         print("⏸️ Pausing recording...")
         recorder.pause()
-        audioLevel = 0.0
+        DispatchQueue.main.async {
+            self.audioLevel = 0.0
+        }
     }
     
     func resumeRecording() {
@@ -886,7 +1021,9 @@ class AudioService: ObservableObject {
             stopTraditionalRecording(recorder: recorder)
         }
         
-        audioLevel = 0.0
+        DispatchQueue.main.async {
+            self.audioLevel = 0.0
+        }
         stopLevelTimer() // タイマーを停止
         stopSimulatedAudioForTesting() // シミュレート音声も停止
         print("✅ Recording stopped")
@@ -945,7 +1082,9 @@ class AudioService: ObservableObject {
         let recordingURL = recorder.url
         print("🗑️ Discarding recording...")
         recorder.stop()
-        audioLevel = 0.0
+        DispatchQueue.main.async {
+            self.audioLevel = 0.0
+        }
         
         // ファイルを削除
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -980,7 +1119,9 @@ class AudioService: ObservableObject {
         
         // 従来のAVAudioRecorder使用時
         guard let recorder = audioRecorder, recorder.isRecording else {
-            audioLevel = 0.0
+            DispatchQueue.main.async {
+                self.audioLevel = 0.0
+            }
             return
         }
         
@@ -992,11 +1133,16 @@ class AudioService: ObservableObject {
         let minDecibels: Float = -45.0
         
         if averagePower < silenceThreshold {
-            audioLevel = 0.0
+            DispatchQueue.main.async {
+                self.audioLevel = 0.0
+            }
         } else {
             let normalizedLevel = max(0.0, (averagePower - minDecibels) / -minDecibels)
             // 音声がある場合のみ平方根で反応を強化
-            audioLevel = sqrt(normalizedLevel)
+            let newLevel = sqrt(normalizedLevel)
+            DispatchQueue.main.async {
+                self.audioLevel = newLevel
+            }
         }
     }
     
@@ -1035,7 +1181,9 @@ class AudioService: ObservableObject {
     /// 待機状態の音声レベル監視を停止
     func stopStandbyAudioMonitoring() {
         stopLevelTimer()
-        audioLevel = 0.0
+        DispatchQueue.main.async {
+            self.audioLevel = 0.0
+        }
         print("🎚️ Standby audio monitoring stopped")
     }
     
@@ -1056,7 +1204,9 @@ class AudioService: ObservableObject {
         
         // 従来のAVAudioRecorder使用時
         guard let recorder = audioRecorder, recorder.isRecording else {
-            audioLevel = 0.0
+            DispatchQueue.main.async {
+                self.audioLevel = 0.0
+            }
             return
         }
         
@@ -1070,11 +1220,16 @@ class AudioService: ObservableObject {
         let previousLevel = audioLevel
         
         if averagePower < silenceThreshold {
-            audioLevel = 0.0
+            DispatchQueue.main.async {
+                self.audioLevel = 0.0
+            }
         } else {
             let normalizedLevel = max(0.0, (averagePower - minDecibels) / -minDecibels)
             // 音声がある場合のみ平方根で反応を強化
-            audioLevel = sqrt(normalizedLevel)
+            let newLevel = sqrt(normalizedLevel)
+            DispatchQueue.main.async {
+                self.audioLevel = newLevel
+            }
         }
         
         // デバッグ: AVAudioRecorderの音声レベル更新ログ（変化があった場合）
@@ -1740,4 +1895,77 @@ class AudioService: ObservableObject {
         UIDevice.current.isBatteryMonitoringEnabled = false
         endBackgroundTask()
     }
+}
+
+// MARK: - AudioService Error Definitions
+
+enum AudioServiceError: LocalizedError {
+    case permissionDenied
+    case diskSpaceInsufficient(available: Int64, required: Int64)
+    case sessionConfigurationFailed(Error)
+    case microphoneNotAvailable
+    case recordingInProgress
+    case recordingSetupFailed(Error)
+    case audioEngineStartFailed(Error)
+    case fileWriteError(Error)
+    
+    var errorDescription: String? {
+        switch self {
+        case .permissionDenied:
+            return "マイクへのアクセス権限が必要です。設定から許可してください。"
+        case .diskSpaceInsufficient(let available, let required):
+            let shortfall = required - available
+            let formatter = ByteCountFormatter()
+            formatter.countStyle = .file
+            return "ストレージ容量不足です。\(formatter.string(fromByteCount: shortfall))の空き容量が必要です。"
+        case .sessionConfigurationFailed(let error):
+            return "録音設定に失敗しました: \(error.localizedDescription)"
+        case .microphoneNotAvailable:
+            return "マイクが利用できません。他のアプリで使用中の可能性があります。"
+        case .recordingInProgress:
+            return "既に録音中です。"
+        case .recordingSetupFailed(let error):
+            return "録音の準備に失敗しました: \(error.localizedDescription)"
+        case .audioEngineStartFailed(let error):
+            return "オーディオエンジンの開始に失敗しました: \(error.localizedDescription)"
+        case .fileWriteError(let error):
+            return "録音ファイルの書き込みに失敗しました: \(error.localizedDescription)"
+        }
+    }
+    
+    var recoverySuggestion: String? {
+        switch self {
+        case .permissionDenied:
+            return "設定アプリでマイクの権限を有効にしてください"
+        case .diskSpaceInsufficient:
+            return "不要なファイルを削除して容量を確保してください"
+        case .sessionConfigurationFailed:
+            return "アプリを再起動してもう一度お試しください"
+        case .microphoneNotAvailable:
+            return "他のアプリを終了してからもう一度お試しください"
+        case .recordingInProgress:
+            return "現在の録音を停止してから新しい録音を開始してください"
+        case .recordingSetupFailed, .audioEngineStartFailed:
+            return "アプリを再起動して、録音設定を確認してください"
+        case .fileWriteError:
+            return "ストレージ容量を確認し、アプリを再起動してください"
+        }
+    }
+    
+    var shouldRetry: Bool {
+        switch self {
+        case .permissionDenied, .diskSpaceInsufficient, .recordingInProgress:
+            return false
+        default:
+            return true
+        }
+    }
+}
+
+// MARK: - Notification Names
+
+extension Notification.Name {
+    static let audioServiceRecordingError = Notification.Name("audioServiceRecordingError")
+    static let audioServiceMemoryWarning = Notification.Name("audioServiceMemoryWarning")
+    static let audioServiceDiskSpaceWarning = Notification.Name("audioServiceDiskSpaceWarning")
 }
