@@ -94,9 +94,9 @@ struct UnifiedAudioMeter: View {
                 .stroke(getStatusColor().opacity(0.2), lineWidth: 1)
         )
         .onReceive(audioService.$audioLevel) { level in
-            // 最適化されたデバッグログ（負荷軽減）
+            // 高頻度デバッグログ（リアルタイム反応確認のため）
             debugUpdateCount += 1
-            if debugUpdateCount % 100 == 0 || (level > 0.1 && debugUpdateCount % 50 == 0) {
+            if debugUpdateCount % 50 == 0 || (level > 0.05 && debugUpdateCount % 20 == 0) {
                 print("🎚️ UnifiedAudioMeter update #\(debugUpdateCount): \(String(format: "%.3f", level)) - isRecording: \(isRecording)")
             }
         }
@@ -170,17 +170,22 @@ struct UnifiedAudioMeter: View {
             return getStatusColor().opacity(0.2)
         }
         
-        let intensity = audioService.audioLevel
+        // バーのインデックスに基づいてグラデーション色を決定
+        let barPosition = Float(index) / Float(barCount - 1) // 0.0 〜 1.0
         
-        // 実機での微細な音声レベルも視覚化（感度向上）
-        if intensity > 0.6 {
-            return AppTheme.universalRecordColor // 赤（高音量）
-        } else if intensity > 0.3 {
-            return AppTheme.universalPauseColor // オレンジ（中音量）
-        } else if intensity > 0.05 {
-            return Color.green // 緑（低音量も表示）
+        // グラデーション色の計算：緑 → 黄 → オレンジ → 赤
+        if barPosition < 0.3 {
+            // 左側30%: 緑色
+            return Color.green
+        } else if barPosition < 0.6 {
+            // 中央30%: 黄色
+            return Color.yellow
+        } else if barPosition < 0.8 {
+            // 右側20%: オレンジ
+            return Color.orange
         } else {
-            return getStatusColor().opacity(0.6) // ステータス色（微弱音声）
+            // 最右側20%: 赤色
+            return Color.red
         }
     }
     

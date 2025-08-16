@@ -684,14 +684,12 @@ class AudioService: ObservableObject {
                     print("🔊 Audio amplified \(self.amplificationLogCount)/5: gain=15.0x, frames=\(buffer.frameLength)")
                 }
                 
-                // 最適化された音声レベル取得（フレーム制限で負荷軽減）
-                self.audioLevelUpdateCounter += 1
-                if self.audioLevelUpdateCounter >= 1024 { // 約23ms間隔（44100Hz / 1024）
-                    self.audioLevelUpdateCounter = 0
-                    DispatchQueue.main.async {
-                        self.updateAudioLevelFromBuffer(buffer)
-                    }
-                }
+                // **リアルタイム音声レベル更新 - 毎回更新で反応性向上**
+                self.bufferCounter += 1
+                
+                // 音声レベルを毎バッファで更新（リアルタイム反応のため）
+                // AudioEngineのタップは既に高頻度（4096サンプル ≈ 93ms @ 44.1kHz）なので毎回更新
+                self.updateAudioLevelFromBuffer(buffer)
             } catch {
                 print("❌ Failed to write audio buffer: \(error)")
             }
@@ -897,9 +895,9 @@ class AudioService: ObservableObject {
         DispatchQueue.main.async {
             self.audioLevel = newLevel
             
-            // レベル変化の詳細ログ（音声検出時または定期的）
+            // 最適化された詳細ログ（負荷軽減のためより少ない頻度）
             self.audioLevelUpdateCounter += 1
-            if newLevel > 0.01 || self.audioLevelUpdateCounter % 20 == 0 {
+            if newLevel > 0.01 || self.audioLevelUpdateCounter % 100 == 0 {
                 print("🎚️ AudioEngine Level Update #\(self.audioLevelUpdateCounter): \(String(format: "%.3f", newLevel)) (dB: \(String(format: "%.1f", decibels)), nonZero: \(nonZeroSamples))")
             }
         }
@@ -1152,7 +1150,7 @@ class AudioService: ObservableObject {
     private func startLevelTimer() {
         stopLevelTimer() // 既存のタイマーをクリア
         
-        levelTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        levelTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             DispatchQueue.main.async {
                 self?.updateAudioLevels()
             }
@@ -1172,19 +1170,118 @@ class AudioService: ObservableObject {
         // AudioSessionを設定
         setupAudioSessionOnDemand()
         
-        // レベルタイマーを開始（待機状態でも音声レベルを取得）
-        startLevelTimer()
+        // 待機状態では録音関連をクリアして競合を防ぐ
+        setupStandbyAudioRecorder()
         
-        print("🎚️ Standby audio monitoring started")
+        // AudioEngineベースの軽量監視を開始
+        startStandbyAudioEngineMonitoring()
+        
+        print("🎚️ Standby audio monitoring started with AudioEngine (non-recording)")
     }
     
     /// 待機状態の音声レベル監視を停止
     func stopStandbyAudioMonitoring() {
-        stopLevelTimer()
+        stopStandbyAudioEngineMonitoring()
+        
+        // 待機状態レコーダーを停止・クリア
+        if let recorder = audioRecorder, !recorder.isRecording {
+            recorder.stop()
+            audioRecorder = nil
+        }
+        
         DispatchQueue.main.async {
             self.audioLevel = 0.0
         }
         print("🎚️ Standby audio monitoring stopped")
+    }
+    
+    /// 待機状態の音声レベル監視専用レコーダーセットアップ
+    private func setupStandbyAudioRecorder() {
+        // 既に録音中の場合は何もしない
+        if let recorder = audioRecorder, recorder.isRecording {
+            return
+        }
+        
+        // 待機状態では audioRecorder をクリアして競合を防ぐ
+        audioRecorder = nil
+        
+        print("🎚️ Standby monitoring: AudioRecorder cleared to prevent conflicts")
+    }
+    
+    // MARK: - Standby Audio Engine Monitoring
+    
+    private var standbyTapInstalled: Bool = false
+    
+    /// AudioEngineベースの待機状態音声レベル監視を開始
+    private func startStandbyAudioEngineMonitoring() {
+        guard let engine = audioEngine,
+              let inputNode = inputNode,
+              !standbyTapInstalled else {
+            print("⚠️ Cannot start standby AudioEngine monitoring")
+            return
+        }
+        
+        do {
+            // AudioEngineが動作中でなければ開始
+            if !engine.isRunning {
+                try engine.start()
+            }
+            
+            let inputFormat = inputNode.inputFormat(forBus: 0)
+            
+            // 軽量な音声レベル監視タップを設定（録音はしない）
+            inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, time in
+                guard let self = self else { return }
+                
+                // 軽量な音声レベル計算
+                self.updateStandbyAudioLevelFromBuffer(buffer)
+            }
+            
+            standbyTapInstalled = true
+            print("✅ Standby AudioEngine monitoring started")
+            
+        } catch {
+            print("❌ Failed to start standby AudioEngine monitoring: \(error)")
+        }
+    }
+    
+    /// AudioEngineベースの待機状態音声レベル監視を停止
+    private func stopStandbyAudioEngineMonitoring() {
+        guard let inputNode = inputNode, standbyTapInstalled else {
+            return
+        }
+        
+        inputNode.removeTap(onBus: 0)
+        standbyTapInstalled = false
+        
+        print("✅ Standby AudioEngine monitoring stopped")
+    }
+    
+    /// 待機状態の軽量音声レベル更新
+    private func updateStandbyAudioLevelFromBuffer(_ buffer: AVAudioPCMBuffer) {
+        guard let floatChannelData = buffer.floatChannelData else { return }
+        
+        let frameLength = Int(buffer.frameLength)
+        guard frameLength > 0 else { return }
+        
+        let channelData = floatChannelData[0]
+        
+        var sum: Float = 0.0
+        var maxSample: Float = 0.0
+        for i in 0..<frameLength {
+            let sample = abs(channelData[i])
+            sum += sample * sample
+            maxSample = max(maxSample, sample)
+        }
+        
+        let rms = sqrt(sum / Float(frameLength))
+        
+        // 待機状態用の軽量レベル計算
+        let level = min(1.0, max(0.0, rms * 10.0)) // 簡単なスケーリング
+        
+        DispatchQueue.main.async {
+            self.audioLevel = level
+        }
     }
     
     /// 音声レベル監視タイマーを停止
@@ -1195,15 +1292,22 @@ class AudioService: ObservableObject {
     
     /// 音声レベル更新（AVAudioRecorder用 + Engine録音フォールバック）
     private func updateAudioLevels() {
-        // Engine録音中もフォールバック音声レベル取得を試行
+        // Engine録音中はTapからの更新を優先するため、ここでは何もしない
         if isEngineRecording {
-            // AudioEngineのTapから音声レベルが更新されているか確認
-            // 更新されていない場合は何もしない（Tapからの更新を優先）
             return
         }
         
-        // 従来のAVAudioRecorder使用時
-        guard let recorder = audioRecorder, recorder.isRecording else {
+        // 従来のAVAudioRecorder使用時（録音中または待機状態のメタリング）
+        guard let recorder = audioRecorder else {
+            DispatchQueue.main.async {
+                self.audioLevel = 0.0
+            }
+            return
+        }
+        
+        // 録音中でない場合の待機状態処理
+        if !recorder.isRecording {
+            // 待機状態では音声レベルを0に設定（準備完了状態）
             DispatchQueue.main.async {
                 self.audioLevel = 0.0
             }
@@ -1212,29 +1316,43 @@ class AudioService: ObservableObject {
         
         recorder.updateMeters()
         let averagePower = recorder.averagePower(forChannel: 0)
+        let peakPower = recorder.peakPower(forChannel: 0)
         
-        // 無音閾値を設定（-55dB以下は無音とみなす）
-        let silenceThreshold: Float = -55.0
-        let minDecibels: Float = -45.0
+        // より感度の高い閾値設定（実機での実用性重視）
+        let silenceThreshold: Float = -70.0  // より低い閾値で音声検出
+        let minDecibels: Float = -60.0       // より広い範囲でレベル計算
+        let maxDecibels: Float = -10.0       // 上限設定
         
         let previousLevel = audioLevel
+        var newLevel: Float = 0.0
+        
+        // より詳細なデバッグログ（常時出力で問題特定）
+        audioLevelUpdateCounter += 1
+        if audioLevelUpdateCounter % 10 == 0 || averagePower > -50.0 {
+            print("🎚️ AVAudioRecorder Metering: avg=\(String(format: "%.1f", averagePower))dB, peak=\(String(format: "%.1f", peakPower))dB, isRecording=\(recorder.isRecording)")
+        }
         
         if averagePower < silenceThreshold {
-            DispatchQueue.main.async {
-                self.audioLevel = 0.0
-            }
+            newLevel = 0.0
         } else {
-            let normalizedLevel = max(0.0, (averagePower - minDecibels) / -minDecibels)
-            // 音声がある場合のみ平方根で反応を強化
-            let newLevel = sqrt(normalizedLevel)
-            DispatchQueue.main.async {
-                self.audioLevel = newLevel
+            // より線形で直感的なレベル計算
+            let clampedPower = max(minDecibels, min(maxDecibels, averagePower))
+            let normalizedLevel = (clampedPower - minDecibels) / (maxDecibels - minDecibels)
+            newLevel = max(0.0, min(1.0, normalizedLevel))
+            
+            // 極小値でも確実に表示されるよう最低レベル保証
+            if newLevel > 0.0 {
+                newLevel = max(newLevel, 0.05) // 最低5%レベル保証
             }
         }
         
-        // デバッグ: AVAudioRecorderの音声レベル更新ログ（変化があった場合）
-        if abs(audioLevel - previousLevel) > 0.05 || audioLevel > 0.1 {
-            print("🎚️ AVAudioRecorder Level Update: \(String(format: "%.3f", audioLevel)) (dB: \(String(format: "%.1f", averagePower)))")
+        DispatchQueue.main.async {
+            self.audioLevel = newLevel
+        }
+        
+        // 高頻度デバッグログ（リアルタイム反応確認）
+        if newLevel > 0.01 || audioLevelUpdateCounter % 20 == 0 {
+            print("🎚️ AVAudioRecorder Level Update #\(audioLevelUpdateCounter): \(String(format: "%.3f", newLevel)) (avg: \(String(format: "%.1f", averagePower))dB, peak: \(String(format: "%.1f", peakPower))dB)")
         }
     }
 
