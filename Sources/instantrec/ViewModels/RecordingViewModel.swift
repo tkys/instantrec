@@ -18,10 +18,16 @@ class RecordingViewModel: ObservableObject {
     @Published var memoryUsage: UInt64 = 0
     @Published var memoryPressureLevel: MemoryMonitorService.MemoryPressureLevel = .normal
     @Published var recordingDuration: TimeInterval = 0
+    
+    // エラーハンドリング
+    @Published var errorMessage: String? = nil
+    @Published var showingErrorAlert = false
+    @Published var canRetryOperation = false
 
     var audioService = AudioService()
     private let memoryMonitor = MemoryMonitorService.shared
     private var timer: Timer?
+    private var longRecordingMonitorTimer: Timer?
     private var modelContext: ModelContext?
     private var recordingStartTime: Date?
     private var currentRecordingFileName: String?
@@ -49,6 +55,9 @@ class RecordingViewModel: ObservableObject {
         // バックグラウンド録音サービス初期化
         setupBackgroundServices()
         
+        // エラーハンドリングセットアップ
+        setupErrorHandling()
+        
         let setupTime = CFAbsoluteTimeGetCurrent() - launchTime
         print("⚙️ ViewModel setup completed at: \(String(format: "%.1f", setupTime * 1000))ms")
         
@@ -66,6 +75,38 @@ class RecordingViewModel: ObservableObject {
         
         print("📱 Background recording services setup completed")
         print("   - Background capability: \(backgroundRecordingEnabled)")
+    }
+    
+    /// エラーハンドリングセットアップ
+    private func setupErrorHandling() {
+        // AudioServiceエラー通知の監視
+        NotificationCenter.default.addObserver(
+            forName: .audioServiceRecordingError,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleAudioServiceError(notification)
+        }
+        
+        // メモリ警告通知の監視
+        NotificationCenter.default.addObserver(
+            forName: .audioServiceMemoryWarning,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleMemoryWarning(notification)
+        }
+        
+        // ディスク容量警告通知の監視
+        NotificationCenter.default.addObserver(
+            forName: .audioServiceDiskSpaceWarning,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleDiskSpaceWarning(notification)
+        }
+        
+        print("🛡️ Error handling setup completed")
     }
     
     func checkPermissions() {
@@ -222,12 +263,13 @@ class RecordingViewModel: ObservableObject {
                 appLifecycleManager.recordingDidStart()
             }
             
-            // 手動開始モードは即座にタイマー開始
+            // 最適化されたタイマー開始（音声レベルは別途リアルタイム更新）
             let timerDelay = 0.0
             DispatchQueue.main.asyncAfter(deadline: .now() + timerDelay) {
-                self.timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                self.timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
                     self?.updateElapsedTime()
-                    self?.audioService.updateAudioLevel()
+                    // 音声レベルはAVAudioEngineで既にリアルタイム更新されているため、
+                    // 定期的な呼び出しは不要（パフォーマンス最適化）
                 }
             }
         } else {
@@ -249,10 +291,10 @@ class RecordingViewModel: ObservableObject {
         audioService.resumeRecording()
         isPaused = false
         
-        // タイマーを再開
-        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        // 最適化されたタイマーを再開
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.updateElapsedTime()
-            self?.audioService.updateAudioLevel()
+            // 音声レベルはリアルタイム更新されているため不要
         }
     }
     
@@ -481,8 +523,8 @@ class RecordingViewModel: ObservableObject {
         // メモリ監視開始
         memoryMonitor.startRecordingMonitoring()
         
-        // メモリ使用量の監視
-        Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] timer in
+        // メモリ使用量の監視（適切なタイマー管理）
+        longRecordingMonitorTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] timer in
             guard let self = self, self.isRecording else {
                 timer.invalidate()
                 return
@@ -501,6 +543,10 @@ class RecordingViewModel: ObservableObject {
     /// 長時間録音監視停止
     private func stopLongRecordingMonitoring() {
         print("🧠 Stopping long recording monitoring")
+        
+        // タイマー停止（メモリリーク防止）
+        longRecordingMonitorTimer?.invalidate()
+        longRecordingMonitorTimer = nil
         
         // メモリ監視停止
         memoryMonitor.stopRecordingMonitoring()
@@ -554,5 +600,84 @@ class RecordingViewModel: ObservableObject {
             print("❌ Failed to get disk space: \(error)")
         }
         return nil
+    }
+    
+    // MARK: - Error Handling Methods
+    
+    /// AudioServiceエラー処理
+    private func handleAudioServiceError(_ notification: Notification) {
+        guard let error = notification.userInfo?["error"] as? Error else { return }
+        
+        print("🚨 AudioService error received: \(error.localizedDescription)")
+        
+        // エラーメッセージを設定
+        if let audioError = error as? AudioServiceError {
+            errorMessage = audioError.localizedDescription
+            canRetryOperation = audioError.shouldRetry
+        } else {
+            errorMessage = error.localizedDescription
+            canRetryOperation = true
+        }
+        
+        // アラート表示フラグを設定
+        showingErrorAlert = true
+        
+        // 録音中エラーの場合、録音を停止
+        if isRecording {
+            stopRecording()
+        }
+    }
+    
+    /// メモリ警告処理
+    private func handleMemoryWarning(_ notification: Notification) {
+        print("⚠️ Memory warning received")
+        
+        if memoryPressureLevel == .critical {
+            errorMessage = "メモリ不足のため録音を停止しました。他のアプリを終了してから再試行してください。"
+            showingErrorAlert = true
+            canRetryOperation = true
+            
+            // 長時間録音中の場合、緊急停止
+            if isRecording && isLongRecording {
+                stopRecording()
+            }
+        }
+    }
+    
+    /// ディスク容量警告処理
+    private func handleDiskSpaceWarning(_ notification: Notification) {
+        print("⚠️ Disk space warning received")
+        
+        errorMessage = "ストレージ容量が不足しています。不要なファイルを削除してください。"
+        showingErrorAlert = true
+        canRetryOperation = false
+        
+        // 録音中の場合、停止
+        if isRecording {
+            stopRecording()
+        }
+    }
+    
+    /// エラー状態のクリア
+    func clearError() {
+        errorMessage = nil
+        showingErrorAlert = false
+        canRetryOperation = false
+    }
+    
+    /// 操作のリトライ
+    func retryLastOperation() {
+        guard canRetryOperation else { return }
+        
+        clearError()
+        
+        // 前回失敗した操作に応じてリトライ
+        if !isRecording && permissionStatus == .granted {
+            startRecording()
+        }
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 }

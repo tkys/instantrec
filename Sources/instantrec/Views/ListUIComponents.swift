@@ -332,7 +332,7 @@ struct SpotifyStyleRecordingCard: View {
                     // 文字起こし進捗表示（該当録音が処理中の場合）
                     if whisperService.isTranscribing && isCurrentlyTranscribing {
                         CompactTranscriptionProgressView(
-                            progress: whisperService.transcriptionProgress,
+                            progress: Float(whisperService.transcriptionProgress),
                             stage: whisperService.transcriptionStage
                         )
                         .padding(.top, 8)
@@ -1443,7 +1443,9 @@ struct TranscriptionDisplayView: View {
                     .padding(ListUITheme.primarySpacing)
                 }
                 .onChange(of: currentSearchIndex) { _ in
-                    scrollToCurrentResult(proxy: proxy)
+                    guard !searchResults.isEmpty else { return }
+                    let result = searchResults[currentSearchIndex]
+                    proxy.scrollTo("segment_\\(result.segmentIndex)", anchor: .center)
                 }
             }
         }
@@ -1516,12 +1518,6 @@ struct TranscriptionDisplayView: View {
         searchResults = []
         currentSearchIndex = 0
         isSearching = false
-    }
-    
-    private func scrollToCurrentResult(proxy: ScrollViewReader) {
-        guard !searchResults.isEmpty else { return }
-        let result = searchResults[currentSearchIndex]
-        proxy.scrollTo("segment_\(result.segmentIndex)", anchor: .center)
     }
 }
 
@@ -1798,7 +1794,7 @@ struct TimestampedLineView: View {
         
         // 指定時間にシーク
         let progress = timeInSeconds / recording.duration
-        playbackManager.seek(to: Float(progress))
+        playbackManager.seek(to: progress)
         
         // ハプティックフィードバック
         let impactGenerator = UIImpactFeedbackGenerator(style: .light)
@@ -1841,6 +1837,209 @@ struct SegmentedTextView: View {
                         .id("segment_\(item.index)")
                 }
             }
+        }
+    }
+}
+
+// MARK: - Segment Editing Components
+
+struct EditableSegmentCard: View {
+    @Binding var segment: TranscriptionSegment
+    let isEditing: Bool
+    @State private var editedText: String = ""
+    @State private var isEditingThisSegment: Bool = false
+    @FocusState private var isTextFieldFocused: Bool
+    
+    let onSave: () -> Void
+    let onCancel: () -> Void
+    
+    init(segment: Binding<TranscriptionSegment>, isEditing: Bool, onSave: @escaping () -> Void, onCancel: @escaping () -> Void) {
+        self._segment = segment
+        self.isEditing = isEditing
+        self.onSave = onSave
+        self.onCancel = onCancel
+        self._editedText = State(initialValue: segment.wrappedValue.text)
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // タイムスタンプ表示
+            HStack {
+                Text(formatTimestamp(segment.startTime))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+                
+                Text("→")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Text(formatTimestamp(segment.endTime))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+                
+                Spacer()
+                
+                // 編集ボタン（編集モード時のみ表示）
+                if isEditing && !isEditingThisSegment {
+                    Button("Edit") {
+                        startEditing()
+                    }
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                }
+            }
+            
+            // テキスト表示・編集エリア
+            if isEditingThisSegment && isEditing {
+                VStack(spacing: 8) {
+                    TextEditor(text: $editedText)
+                        .font(.body)
+                        .frame(minHeight: 60)
+                        .padding(8)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                        .focused($isTextFieldFocused)
+                    
+                    HStack {
+                        Button("Cancel") {
+                            cancelEditing()
+                        }
+                        .foregroundColor(.red)
+                        .font(.caption)
+                        
+                        Spacer()
+                        
+                        Button("Save") {
+                            saveEdit()
+                        }
+                        .foregroundColor(.blue)
+                        .font(.caption)
+                        .disabled(editedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            } else {
+                Text(segment.text)
+                    .font(.body)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .onTapGesture {
+                        if isEditing {
+                            startEditing()
+                        }
+                    }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(isEditingThisSegment ? Color.blue.opacity(0.1) : Color(.systemBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(
+                            isEditingThisSegment ? Color.blue : Color(.systemGray4),
+                            lineWidth: isEditingThisSegment ? 2 : 1
+                        )
+                )
+        )
+        .onAppear {
+            editedText = segment.text
+        }
+        .onChange(of: segment.text) { _, newValue in
+            if !isEditingThisSegment {
+                editedText = newValue
+            }
+        }
+    }
+    
+    private func startEditing() {
+        editedText = segment.text
+        isEditingThisSegment = true
+        isTextFieldFocused = true
+    }
+    
+    private func cancelEditing() {
+        editedText = segment.text
+        isEditingThisSegment = false
+        isTextFieldFocused = false
+        onCancel()
+    }
+    
+    private func saveEdit() {
+        let trimmedText = editedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedText.isEmpty && trimmedText != segment.text {
+            segment = TranscriptionSegment(
+                startTime: segment.startTime,
+                endTime: segment.endTime,
+                text: trimmedText,
+                confidence: segment.confidence,
+                id: segment.id
+            )
+            onSave()
+        }
+        isEditingThisSegment = false
+        isTextFieldFocused = false
+    }
+    
+    private func formatTimestamp(_ time: Double) -> String {
+        let minutes = Int(time) / 60
+        let seconds = Int(time) % 60
+        let milliseconds = Int((time.truncatingRemainder(dividingBy: 1)) * 1000)
+        return String(format: "%02d:%02d.%03d", minutes, seconds, milliseconds)
+    }
+}
+
+struct SegmentEditableView: View {
+    @Binding var recording: Recording
+    let isEditing: Bool
+    @State private var segments: [TranscriptionSegment] = []
+    @Environment(\.modelContext) private var modelContext
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if segments.isEmpty {
+                Text("No segments available for editing")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .padding()
+            } else {
+                ForEach($segments) { $segment in
+                    EditableSegmentCard(
+                        segment: $segment,
+                        isEditing: isEditing,
+                        onSave: {
+                            saveSegmentEdit(segment)
+                        },
+                        onCancel: {
+                            // キャンセル時の処理（必要に応じて実装）
+                        }
+                    )
+                    .id(segment.id)
+                }
+            }
+        }
+        .onAppear {
+            loadSegments()
+        }
+        .onChange(of: recording.segmentsData) { _, _ in
+            loadSegments()
+        }
+    }
+    
+    private func loadSegments() {
+        segments = recording.segments
+    }
+    
+    private func saveSegmentEdit(_ segment: TranscriptionSegment) {
+        // Recording.swiftのupdateSegmentメソッドを使用
+        recording.updateSegment(id: segment.id, newText: segment.text)
+        
+        // データベースに保存
+        do {
+            try modelContext.save()
+            print("✅ Segment edited and saved: \(segment.id)")
+        } catch {
+            print("❌ Failed to save segment edit: \(error)")
         }
     }
 }
@@ -1926,7 +2125,7 @@ struct SegmentCardView: View {
         }
         
         let progress = estimatedStartTime / recording.duration
-        playbackManager.seek(to: Float(progress))
+        playbackManager.seek(to: Double(progress))
         
         let impactGenerator = UIImpactFeedbackGenerator(style: .light)
         impactGenerator.impactOccurred()
@@ -2069,7 +2268,7 @@ struct TimelineItemView: View {
         }
         
         let progress = timeInSeconds / recording.duration
-        playbackManager.seek(to: Float(progress))
+        playbackManager.seek(to: Double(progress))
         
         let impactGenerator = UIImpactFeedbackGenerator(style: .medium)
         impactGenerator.impactOccurred()

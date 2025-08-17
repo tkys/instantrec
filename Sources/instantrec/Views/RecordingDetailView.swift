@@ -16,6 +16,7 @@ struct RecordingDetailView: View {
     @State private var showingShareSheet = false
     @State private var isRetryingTranscription = false
     @State private var selectedDisplayMode: TranscriptionDisplayMode = .plainText
+    @State private var editableSegments: [TranscriptionSegment] = []
     
     private var availableDisplayModes: [TranscriptionDisplayMode] {
         recording.getAvailableDisplayModes()
@@ -24,278 +25,427 @@ struct RecordingDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: HierarchicalSpacing.level1) {
-                // Header Section
-                VStack(alignment: .leading, spacing: HierarchicalSpacing.level3) {
-                    Text(recording.displayName)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    
-                    Text(recording.relativeTimeString)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    Text(formatDuration(recording.duration))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal, HierarchicalSpacing.level3)
-                
-                // Playback Controls
-                VStack(spacing: HierarchicalSpacing.level3) {
-                    HStack(spacing: HierarchicalSpacing.level3) {
-                        Button(action: {
-                            playbackManager.play(recording: recording)
-                        }) {
-                            HStack {
-                                Image(systemName: playbackManager.isPlayingRecording(recording) ? "pause.fill" : "play.fill")
-                                Text(playbackManager.isPlayingRecording(recording) ? "Pause" : "Play")
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
-                        }
-                        
-                        Button(action: {
-                            recording.isFavorite.toggle()
-                            try? modelContext.save()
-                        }) {
-                            Image(systemName: recording.isFavorite ? "star.fill" : "star")
-                                .foregroundColor(recording.isFavorite ? .yellow : .gray)
-                                .font(.title2)
-                        }
-                    }
-                    
-                    // P0機能: インタラクティブプログレススライダー
-                    if playbackManager.currentPlayingRecording?.id == recording.id {
-                        VStack(spacing: 12) {
-                            // プログレススライダー
-                            Slider(
-                                value: Binding(
-                                    get: { playbackManager.playbackProgress },
-                                    set: { newValue in
-                                        playbackManager.seek(to: newValue)
-                                    }
-                                ),
-                                in: 0...1
-                            )
-                            .accentColor(.blue)
-                            
-                            // 時間表示
-                            HStack {
-                                Text(playbackManager.currentPlaybackTime)
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundColor(.secondary)
-                                
-                                Spacer()
-                                
-                                Text(playbackManager.totalPlaybackTime)
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            // P0機能: 再生速度制御
-                            HStack(spacing: 8) {
-                                Text("Speed:")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                ForEach(playbackManager.availablePlaybackRates, id: \.self) { rate in
-                                    Button(action: {
-                                        playbackManager.setPlaybackRate(rate)
-                                    }) {
-                                        Text(formatPlaybackRate(rate))
-                                            .font(.caption)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(
-                                                playbackManager.playbackRate == rate ? 
-                                                Color.blue : Color(.systemGray6)
-                                            )
-                                            .foregroundColor(
-                                                playbackManager.playbackRate == rate ? 
-                                                .white : .primary
-                                            )
-                                            .cornerRadius(6)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, HierarchicalSpacing.level3)
-                
-                Divider()
-                    .padding(.horizontal, HierarchicalSpacing.level3)
-                
-                // Transcription Section
-                if let transcription = recording.transcription, !transcription.isEmpty {
-                    VStack(alignment: .leading, spacing: HierarchicalSpacing.level3) {
-                        HStack {
-                            Text("Transcription")
-                                .font(.headline)
-                            
-                            Spacer()
-                            
-                            Button("Edit") {
-                                startTranscriptionEdit()
-                            }
-                            .font(.caption)
-                        }
-                        
-                        // タイムスタンプ有効性インジケーター
-                        if recording.timestampValidity != .valid {
-                            TimestampValidityIndicator(validity: recording.timestampValidity)
-                        }
-                        
-                        // Display Mode Selector moved to Settings - keep compact version when multiple modes available
-                        if !isEditingTranscription && availableDisplayModes.count > 1 {
-                            HStack {
-                                Text("表示モード: \(selectedDisplayMode.displayName)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                
-                                Spacer()
-                                
-                                Menu {
-                                    ForEach(availableDisplayModes, id: \.self) { mode in
-                                        Button(action: {
-                                            withAnimation(.easeInOut(duration: 0.3)) {
-                                                selectedDisplayMode = mode
-                                            }
-                                        }) {
-                                            Label(mode.displayName, systemImage: mode.iconName)
-                                        }
-                                    }
-                                } label: {
-                                    Image(systemName: "ellipsis.circle")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(6)
-                        }
-                        
-                        if isEditingTranscription {
-                            VStack(alignment: .leading, spacing: HierarchicalSpacing.level3) {
-                                TextEditor(text: $editedTranscription)
-                                    .frame(minHeight: 200)
-                                    .padding(8)
-                                    .background(Color(.systemGray6))
-                                    .cornerRadius(8)
-                                
-                                HStack {
-                                    Button("Cancel") {
-                                        cancelTranscriptionEdit()
-                                    }
-                                    .foregroundColor(.red)
-                                    
-                                    Spacer()
-                                    
-                                    // P0機能: リセットボタン
-                                    if recording.transcription != recording.originalTranscription {
-                                        Button("Reset") {
-                                            resetTranscription()
-                                        }
-                                        .foregroundColor(.orange)
-                                    }
-                                    
-                                    Button("Save") {
-                                        saveTranscription()
-                                    }
-                                    .foregroundColor(.blue)
-                                    .disabled(editedTranscription == transcription)
-                                }
-                            }
-                        } else {
-                            // Use TranscriptionDisplayView for different display modes
-                            TranscriptionDisplayView(
-                                recording: recording,
-                                displayMode: selectedDisplayMode
-                            )
-                        }
-                    }
-                    .padding(.horizontal, HierarchicalSpacing.level3)
-                } else {
-                    VStack(spacing: HierarchicalSpacing.level3) {
-                        // 文字起こし失敗時の表示と再試行ボタン
-                        if recording.transcriptionError != nil {
-                            Text("Transcription Failed")
-                                .font(.headline)
-                                .foregroundColor(.red)
-                            
-                            Text("初期化がタイムアウトしました（モデルがダウンロード中の可能性があります）")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                            
-                            Button("Retry Transcription") {
-                                retryTranscription()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .foregroundColor(.white)
-                            .disabled(isRetryingTranscription)
-                            
-                            if isRetryingTranscription {
-                                ProgressView("Retrying...")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } else {
-                            Text("No transcription available")
-                                .font(.headline)
-                                .foregroundColor(.secondary)
-                            
-                            Text("Enable Auto Transcription in Settings to automatically transcribe new recordings.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, HierarchicalSpacing.level3)
-                }
+                headerSection
+                playbackControlsSection
+                Divider().padding(.horizontal, HierarchicalSpacing.level3)
+                transcriptionSection
             }
             .padding(.vertical, HierarchicalSpacing.level3)
         }
         .navigationTitle(recording.displayName)
         .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Menu {
-                    Button("Share Recording", systemImage: "square.and.arrow.up") {
-                        shareRecording()
-                    }
-                    
-                    Button("Play", systemImage: "play.fill") {
-                        playbackManager.play(recording: recording)
-                    }
-                    
-                    Button(recording.isFavorite ? "Remove from Favorites" : "Add to Favorites", 
-                           systemImage: recording.isFavorite ? "star.slash" : "star") {
-                        recording.isFavorite.toggle()
-                        try? modelContext.save()
-                    }
-                    
-                    Button("Delete Recording", systemImage: "trash", role: .destructive) {
-                        deleteRecording()
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.title3)
-                }
-            }
-        }
+        .toolbar { toolbarContent }
         .sheet(isPresented: $showingShareSheet) {
             ActivityView(recording: recording)
         }
         .onAppear {
             let impactGenerator = UIImpactFeedbackGenerator(style: .light)
             impactGenerator.impactOccurred()
+        }
+    }
+    
+    // MARK: - View Components
+    
+    @ViewBuilder
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: HierarchicalSpacing.level3) {
+            Text(recording.displayName)
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            Text(recording.relativeTimeString)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Text(formatDuration(recording.duration))
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, HierarchicalSpacing.level3)
+    }
+    
+    @ViewBuilder
+    private var playbackControlsSection: some View {
+        VStack(spacing: HierarchicalSpacing.level3) {
+            playbackButtons
+            if playbackManager.currentPlayingRecording?.id == recording.id {
+                playbackProgressSection
+            }
+        }
+        .padding(.horizontal, HierarchicalSpacing.level3)
+    }
+    
+    @ViewBuilder
+    private var playbackButtons: some View {
+        HStack(spacing: HierarchicalSpacing.level3) {
+            Button(action: {
+                playbackManager.play(recording: recording)
+            }) {
+                HStack {
+                    Image(systemName: playbackManager.isPlayingRecording(recording) ? "pause.fill" : "play.fill")
+                    Text(playbackManager.isPlayingRecording(recording) ? "Pause" : "Play")
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+            }
+            
+            Button(action: {
+                recording.isFavorite.toggle()
+                try? modelContext.save()
+            }) {
+                Image(systemName: recording.isFavorite ? "star.fill" : "star")
+                    .foregroundColor(recording.isFavorite ? .yellow : .gray)
+                    .font(.title2)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var playbackProgressSection: some View {
+        VStack(spacing: 12) {
+            // プログレススライダー
+            Slider(
+                value: Binding(
+                    get: { playbackManager.playbackProgress },
+                    set: { newValue in
+                        playbackManager.seek(to: newValue)
+                    }
+                ),
+                in: 0...1
+            )
+            .accentColor(.blue)
+            
+            // 時間表示
+            HStack {
+                Text(playbackManager.currentPlaybackTime)
+                    .font(.caption.monospacedDigit())
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                Text(playbackManager.totalPlaybackTime)
+                    .font(.caption.monospacedDigit())
+                    .foregroundColor(.secondary)
+            }
+            
+            // 再生速度制御
+            playbackSpeedControls
+        }
+    }
+    
+    @ViewBuilder
+    private var playbackSpeedControls: some View {
+        HStack(spacing: 8) {
+            Text("Speed:")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            ForEach(playbackManager.availablePlaybackRates, id: \.self) { rate in
+                Button(action: {
+                    playbackManager.setPlaybackRate(rate)
+                }) {
+                    Text(formatPlaybackRate(rate))
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            playbackManager.playbackRate == rate ? 
+                            Color.blue : Color(.systemGray6)
+                        )
+                        .foregroundColor(
+                            playbackManager.playbackRate == rate ? 
+                            .white : .primary
+                        )
+                        .cornerRadius(6)
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var transcriptionSection: some View {
+        if let transcription = recording.transcription, !transcription.isEmpty {
+            transcriptionContentView
+        } else {
+            noTranscriptionView
+        }
+    }
+    
+    @ViewBuilder
+    private var transcriptionContentView: some View {
+        VStack(alignment: .leading, spacing: HierarchicalSpacing.level3) {
+            transcriptionHeader
+            
+            if recording.timestampValidity != .valid {
+                TimestampValidityIndicator(validity: recording.timestampValidity)
+            }
+            
+            if !isEditingTranscription && availableDisplayModes.count > 1 {
+                displayModeSelector
+            }
+            
+            if isEditingTranscription {
+                editingView
+            } else {
+                TranscriptionDisplayView(
+                    recording: recording,
+                    displayMode: selectedDisplayMode
+                )
+            }
+        }
+        .padding(.horizontal, HierarchicalSpacing.level3)
+    }
+    
+    @ViewBuilder
+    private var transcriptionHeader: some View {
+        HStack {
+            Text("Transcription")
+                .font(.headline)
+            
+            Spacer()
+            
+            Button("Edit") {
+                startTranscriptionEdit()
+            }
+            .font(.caption)
+        }
+    }
+    
+    @ViewBuilder
+    private var displayModeSelector: some View {
+        HStack {
+            Text("表示モード: \(selectedDisplayMode.displayName)")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+            
+            Menu {
+                ForEach(availableDisplayModes, id: \.self) { mode in
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            selectedDisplayMode = mode
+                        }
+                    }) {
+                        Label(mode.displayName, systemImage: mode.iconName)
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color(.systemGray6))
+        .cornerRadius(6)
+    }
+    
+    @ViewBuilder
+    private var editingView: some View {
+        VStack(alignment: .leading, spacing: HierarchicalSpacing.level3) {
+            editingModeHeader
+            
+            if !recording.segments.isEmpty {
+                segmentEditingView
+            } else {
+                fallbackTextEditingView
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var editingModeHeader: some View {
+        HStack {
+            Text("セグメント編集モード")
+                .font(.subheadline)
+                .fontWeight(.medium)
+            
+            Spacer()
+            
+            Text("\(recording.segments.count) セグメント")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+    
+    @ViewBuilder
+    private var segmentEditingView: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if editableSegments.isEmpty {
+                Text("No segments available for editing")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .padding()
+            } else {
+                ForEach($editableSegments) { $segment in
+                    EditableSegmentCard(
+                        segment: $segment,
+                        isEditing: true,
+                        onSave: {
+                            updateSegment(id: segment.id, newText: segment.text)
+                        },
+                        onCancel: {
+                            // Handle cancel if needed
+                        }
+                    )
+                    .id(segment.id)
+                }
+            }
+            
+            // セグメント編集コントロール
+            HStack {
+                Button("Cancel") {
+                    cancelTranscriptionEdit()
+                }
+                .foregroundColor(.red)
+                
+                Spacer()
+                
+                if recording.originalSegmentsData != nil {
+                    Button("Reset") {
+                        resetTranscription()
+                    }
+                    .foregroundColor(.orange)
+                }
+                
+                Button("Save") {
+                    saveSegmentTranscription()
+                }
+                .foregroundColor(.blue)
+            }
+            .padding(.top, 16)
+        }
+        .onAppear {
+            editableSegments = recording.segments
+        }
+    }
+    
+    @ViewBuilder
+    private var fallbackTextEditingView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("セグメントデータが利用できません。テキスト編集モードを使用します。")
+                .font(.caption)
+                .foregroundColor(.orange)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(6)
+            
+            TextEditor(text: $editedTranscription)
+                .frame(minHeight: 200)
+                .padding(8)
+                .background(Color(.systemGray6))
+                .cornerRadius(8)
+            
+            fallbackEditingControls
+        }
+    }
+    
+    @ViewBuilder
+    private var fallbackEditingControls: some View {
+        HStack {
+            Button("Cancel") {
+                cancelTranscriptionEdit()
+            }
+            .foregroundColor(.red)
+            
+            Spacer()
+            
+            if recording.transcription != recording.originalTranscription {
+                Button("Reset") {
+                    resetTranscription()
+                }
+                .foregroundColor(.orange)
+            }
+            
+            Button("Save") {
+                saveTranscription()
+            }
+            .foregroundColor(.blue)
+            .disabled(editedTranscription == recording.transcription)
+        }
+    }
+    
+    @ViewBuilder
+    private var noTranscriptionView: some View {
+        VStack(spacing: HierarchicalSpacing.level3) {
+            if recording.transcriptionError != nil {
+                transcriptionErrorView
+            } else {
+                noTranscriptionAvailableView
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, HierarchicalSpacing.level3)
+    }
+    
+    @ViewBuilder
+    private var transcriptionErrorView: some View {
+        Text("Transcription Failed")
+            .font(.headline)
+            .foregroundColor(.red)
+        
+        Text("初期化がタイムアウトしました（モデルがダウンロード中の可能性があります）")
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .multilineTextAlignment(.center)
+        
+        Button("Retry Transcription") {
+            retryTranscription()
+        }
+        .buttonStyle(.borderedProminent)
+        .foregroundColor(.white)
+        .disabled(isRetryingTranscription)
+        
+        if isRetryingTranscription {
+            ProgressView("Retrying...")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+    
+    @ViewBuilder
+    private var noTranscriptionAvailableView: some View {
+        Text("No transcription available")
+            .font(.headline)
+            .foregroundColor(.secondary)
+        
+        Text("Enable Auto Transcription in Settings to automatically transcribe new recordings.")
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .multilineTextAlignment(.center)
+    }
+    
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Menu {
+                Button("Share Recording", systemImage: "square.and.arrow.up") {
+                    shareRecording()
+                }
+                
+                Button("Play", systemImage: "play.fill") {
+                    playbackManager.play(recording: recording)
+                }
+                
+                Button(recording.isFavorite ? "Remove from Favorites" : "Add to Favorites", 
+                       systemImage: recording.isFavorite ? "star.slash" : "star") {
+                    recording.isFavorite.toggle()
+                    try? modelContext.save()
+                }
+                
+                Button("Delete Recording", systemImage: "trash", role: .destructive) {
+                    deleteRecording()
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.title3)
+            }
         }
     }
     
@@ -320,7 +470,38 @@ struct RecordingDetailView: View {
     private func startTranscriptionEdit() {
         if let transcription = recording.transcription {
             editedTranscription = transcription
+            editableSegments = recording.segments
             isEditingTranscription = true
+        }
+    }
+    
+    // セグメント更新メソッド
+    private func updateSegment(id: UUID, newText: String) {
+        recording.updateSegment(id: id, newText: newText)
+        
+        do {
+            try modelContext.save()
+            print("📝 Segment updated: \(id)")
+        } catch {
+            print("❌ Failed to save segment update: \(error)")
+        }
+    }
+    
+    // セグメント基盤編集の保存
+    private func saveSegmentTranscription() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            // セグメント編集は updateSegment() で既に保存済み
+            // 編集モードを終了
+            editableSegments = []
+            isEditingTranscription = false
+            
+            // 表示モードを利用可能なものに調整
+            let newAvailableModes = recording.getAvailableDisplayModes()
+            if !newAvailableModes.contains(selectedDisplayMode) {
+                selectedDisplayMode = newAvailableModes.first ?? .plainText
+            }
+            
+            print("✅ Segment-based transcription editing completed")
         }
     }
     
@@ -360,6 +541,7 @@ struct RecordingDetailView: View {
         if let transcription = recording.transcription {
             editedTranscription = transcription
         }
+        editableSegments = []
         isEditingTranscription = false
     }
     

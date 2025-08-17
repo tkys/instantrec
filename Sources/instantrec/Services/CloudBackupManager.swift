@@ -34,8 +34,17 @@ class CloudBackupManager: ObservableObject {
     /// バックアップキュー
     private var backupQueue: [BackupTask] = []
     
-    /// 同時実行制限
-    private let maxConcurrentBackups = 2
+    /// 同時実行制限（パフォーマンス最適化）
+    private let maxConcurrentBackups = 3
+    
+    /// バックグラウンドキュー処理サイクル（秒）
+    private let backgroundProcessingInterval: TimeInterval = 3.0
+    
+    /// パフォーマンス最適化フラグ
+    private let performanceOptimizationEnabled = true
+    
+    /// バッチ処理サイズ
+    private let batchProcessingSize = 5
     
     // MARK: - Singleton
     
@@ -162,35 +171,76 @@ class CloudBackupManager: ObservableObject {
         activeBackupsCount += 1
         updateStatus()
         
+        let startTime = Date()
+        
         do {
-            switch task.type {
-            case .audio(let recording):
-                try await backupAudioFile(recording)
-                
-            case .transcription(let recording):
-                try await backupTranscriptionFile(recording)
-                
-            case .combined(let recording):
-                try await backupAudioFile(recording)
-                if backupSettings.includeTranscription {
-                    try await backupTranscriptionFile(recording)
-                }
+            // パフォーマンス最適化された実行
+            if performanceOptimizationEnabled {
+                try await executeBackupTaskOptimized(task)
+            } else {
+                try await executeBackupTaskStandard(task)
             }
             
             // バックアップ成功
             markBackupCompleted(for: task)
-            print("✅ CloudBackupManager: Backup completed for task \(task.id)")
+            let duration = Date().timeIntervalSince(startTime)
+            print("✅ CloudBackupManager: Backup completed for task \(task.id) in \(String(format: "%.2f", duration))s")
             
         } catch {
-            print("❌ CloudBackupManager: Backup failed for task \(task.id): \(error)")
+            let duration = Date().timeIntervalSince(startTime)
+            print("❌ CloudBackupManager: Backup failed for task \(task.id) after \(String(format: "%.2f", duration))s: \(error)")
             
             if backupSettings.enableAutoRetry {
-                scheduleRetry(task)
+                scheduleRetryOptimized(task, error: error)
             }
         }
         
         activeBackupsCount = max(0, activeBackupsCount - 1)
         updateStatus()
+    }
+    
+    /// 最適化されたバックアップタスク実行
+    private func executeBackupTaskOptimized(_ task: BackupTask) async throws {
+        switch task.type {
+        case .audio(let recording):
+            try await backupAudioFileOptimized(recording)
+            
+        case .transcription(let recording):
+            try await backupTranscriptionFileOptimized(recording)
+            
+        case .combined(let recording):
+            // 並列処理で高速化
+            if backupSettings.includeTranscription {
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    group.addTask {
+                        try await self.backupAudioFileOptimized(recording)
+                    }
+                    group.addTask {
+                        try await self.backupTranscriptionFileOptimized(recording)
+                    }
+                    try await group.waitForAll()
+                }
+            } else {
+                try await backupAudioFileOptimized(recording)
+            }
+        }
+    }
+    
+    /// 標準バックアップタスク実行
+    private func executeBackupTaskStandard(_ task: BackupTask) async throws {
+        switch task.type {
+        case .audio(let recording):
+            try await backupAudioFile(recording)
+            
+        case .transcription(let recording):
+            try await backupTranscriptionFile(recording)
+            
+        case .combined(let recording):
+            try await backupAudioFile(recording)
+            if backupSettings.includeTranscription {
+                try await backupTranscriptionFile(recording)
+            }
+        }
     }
     
     private func backupAudioFile(_ recording: Recording) async throws {
@@ -210,6 +260,37 @@ class CloudBackupManager: ObservableObject {
         // TODO: Recording モデルの更新ロジック
         
         print("📤 CloudBackupManager: Audio file uploaded with ID: \(fileId)")
+    }
+    
+    /// 最適化された音声ファイルバックアップ
+    private func backupAudioFileOptimized(_ recording: Recording) async throws {
+        print("🎵 CloudBackupManager: Optimized audio backup for \(recording.fileName)")
+        
+        let audioService = AudioService()
+        let fileURL = audioService.getDocumentsDirectory().appendingPathComponent(recording.fileName)
+        
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            throw BackupError.fileNotFound(recording.fileName)
+        }
+        
+        // ファイルサイズチェックでアップロード戦略を最適化
+        let fileAttributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let fileSize = fileAttributes[.size] as? Int64 ?? 0
+        let fileSizeMB = Double(fileSize) / 1024.0 / 1024.0
+        
+        // 大容量ファイルの場合はチャンクアップロード（スタブ実装）
+        if fileSizeMB > 10.0 {
+            print("🎚️ Large file detected (\(String(format: "%.1f", fileSizeMB))MB), using standard upload")
+            let fileId = try await googleDriveService.uploadRecording(fileURL: fileURL, fileName: recording.fileName)
+            print("📤 Optimized large file upload completed with ID: \(fileId)")
+        } else {
+            // 通常アップロード
+            let fileId = try await googleDriveService.uploadRecording(fileURL: fileURL, fileName: recording.fileName)
+            print("📤 Optimized audio file uploaded with ID: \(fileId)")
+        }
+        
+        // 録音の同期状態を更新
+        // TODO: Recording モデルの更新ロジック
     }
     
     private func backupTranscriptionFile(_ recording: Recording) async throws {
@@ -236,6 +317,49 @@ class CloudBackupManager: ObservableObject {
         try? FileManager.default.removeItem(at: transcriptionURL)
         
         print("📤 CloudBackupManager: Transcription uploaded with ID: \(fileId)")
+    }
+    
+    /// 最適化された文字起こしファイルバックアップ
+    private func backupTranscriptionFileOptimized(_ recording: Recording) async throws {
+        guard let transcription = recording.transcription, !transcription.isEmpty else {
+            throw BackupError.transcriptionNotAvailable
+        }
+        
+        print("📝 CloudBackupManager: Optimized transcription backup for \(recording.fileName)")
+        
+        // メモリ効率的なファイル作成
+        let transcriptionData = try await createTranscriptionDataOptimized(recording)
+        
+        // バッチアップロードで効率化
+        try await withThrowingTaskGroup(of: String.self) { group in
+            // テキストファイルアップロード
+            group.addTask {
+                return try await self.googleDriveService.uploadRecording(
+                    fileURL: transcriptionData.textFileURL,
+                    fileName: transcriptionData.textFileName
+                )
+            }
+            
+            // メタデータファイルアップロード
+            group.addTask {
+                return try await self.googleDriveService.uploadRecording(
+                    fileURL: transcriptionData.metadataFileURL,
+                    fileName: transcriptionData.metadataFileName
+                )
+            }
+            
+            // 両方のアップロード完了を待機
+            var uploadedFiles: [String] = []
+            for try await fileId in group {
+                uploadedFiles.append(fileId)
+            }
+            
+            print("📤 Optimized transcription files uploaded: \(uploadedFiles.joined(separator: ", "))")
+        }
+        
+        // 一時ファイルクリーンアップ
+        try? FileManager.default.removeItem(at: transcriptionData.textFileURL)
+        try? FileManager.default.removeItem(at: transcriptionData.metadataFileURL)
     }
     
     private func createTranscriptionFile(_ transcription: String, fileName: String) throws -> URL {
@@ -362,6 +486,33 @@ Generated by InstantRec
         print("🔄 CloudBackupManager: Scheduled retry for task \(task.id)")
     }
     
+    /// 最適化されたリトライスケジューリング
+    private func scheduleRetryOptimized(_ task: BackupTask, error: Error) {
+        // エラータイプに基づいた動的リトライ間隔
+        let retryDelay: TimeInterval = {
+            if let backupError = error as? BackupError {
+                switch backupError {
+                case .networkUnavailable:
+                    return 120.0  // 2分後
+                case .authenticationRequired:
+                    return 600.0  // 10分後
+                default:
+                    return 300.0  // 5分後
+                }
+            } else {
+                return 180.0  // 3分後（デフォルト）
+            }
+        }()
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + retryDelay) { [weak self] in
+            Task { [weak self] in
+                await self?.executeBackupTask(task)
+            }
+        }
+        
+        print("🔄 CloudBackupManager: Scheduled optimized retry for task \(task.id) in \(retryDelay)s")
+    }
+    
     private func observeTranscriptionCompletion(for recording: Recording) {
         // TODO: 実際の実装では文字起こしサービスの完了通知を監視
         print("👁️ CloudBackupManager: Observing transcription completion for \(recording.fileName)")
@@ -378,14 +529,53 @@ Generated by InstantRec
     }
     
     private func startNetworkMonitoring() {
-        // ネットワーク状態監視開始
+        // パフォーマンス最適化されたネットワーク監視
         Task {
             while true {
-                if networkMonitor.canUpload && !backupQueue.isEmpty {
-                    await processQueue()
+                if performanceOptimizationEnabled {
+                    await processQueueOptimized()
+                } else {
+                    if networkMonitor.canUpload && !backupQueue.isEmpty {
+                        await processQueue()
+                    }
                 }
                 
-                try? await Task.sleep(nanoseconds: 5_000_000_000) // 5秒間隔
+                try? await Task.sleep(nanoseconds: UInt64(backgroundProcessingInterval * 1_000_000_000))
+            }
+        }
+    }
+    
+    /// パフォーマンス最適化されたキュー処理
+    private func processQueueOptimized() async {
+        guard networkMonitor.canUpload && !backupQueue.isEmpty else {
+            return
+        }
+        
+        // バッチ処理で効率化
+        let availableSlots = maxConcurrentBackups - activeBackupsCount
+        let tasksToProcess = min(availableSlots, batchProcessingSize, backupQueue.count)
+        
+        guard tasksToProcess > 0 else { return }
+        
+        // 優先度順でソート
+        backupQueue.sort { $0.priority.sortOrder < $1.priority.sortOrder }
+        
+        // バッチで処理開始
+        var processingTasks: [BackupTask] = []
+        for _ in 0..<tasksToProcess {
+            if !backupQueue.isEmpty {
+                processingTasks.append(backupQueue.removeFirst())
+            }
+        }
+        
+        queuedItemsCount = backupQueue.count
+        
+        // 並列処理で高速化
+        await withTaskGroup(of: Void.self) { group in
+            for task in processingTasks {
+                group.addTask {
+                    await self.executeBackupTask(task)
+                }
             }
         }
     }
@@ -418,6 +608,14 @@ private enum BackupPriority {
     case high
     case normal
     case low
+    
+    var sortOrder: Int {
+        switch self {
+        case .high: return 0
+        case .normal: return 1
+        case .low: return 2
+        }
+    }
 }
 
 private struct RecordingMetadata: Codable {
@@ -448,5 +646,73 @@ enum BackupError: LocalizedError {
         case .authenticationRequired:
             return "認証が必要です"
         }
+    }
+}
+
+// MARK: - Optimized Data Structures
+
+/// 最適化された文字起こしデータ
+private struct OptimizedTranscriptionData {
+    let textFileURL: URL
+    let textFileName: String
+    let metadataFileURL: URL
+    let metadataFileName: String
+}
+
+// MARK: - Optimized Helper Methods
+
+extension CloudBackupManager {
+    
+    /// メモリ効率的な文字起こしデータ作成
+    private func createTranscriptionDataOptimized(_ recording: Recording) async throws -> OptimizedTranscriptionData {
+        let tempDir = FileManager.default.temporaryDirectory
+        let baseFileName = recording.fileName.replacingOccurrences(of: ".m4a", with: "")
+        
+        // テキストファイル作成
+        let textFileName = "\(baseFileName).txt"
+        let textFileURL = tempDir.appendingPathComponent(textFileName)
+        
+        let optimizedContent = """
+# 録音文字起こし
+ファイル名: \(recording.fileName)
+作成日時: \(recording.createdAt.formatted(date: .abbreviated, time: .standard))
+
+## 文字起こし内容
+\(recording.transcription ?? "")
+
+---
+Generated by InstantRec (Optimized)
+"""
+        
+        try optimizedContent.write(to: textFileURL, atomically: true, encoding: .utf8)
+        
+        // メタデータファイル作成
+        let metadataFileName = "\(baseFileName)_metadata.json"
+        let metadataFileURL = tempDir.appendingPathComponent(metadataFileName)
+        
+        let metadata = RecordingMetadata(
+            fileName: recording.fileName,
+            createdAt: recording.createdAt,
+            duration: recording.duration,
+            hasTranscription: recording.transcription != nil,
+            transcriptionCharacterCount: recording.transcription?.count ?? 0,
+            isFavorite: recording.isFavorite,
+            cloudSyncStatus: recording.cloudSyncStatus.rawValue,
+            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+        )
+        
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = .prettyPrinted
+        
+        let jsonData = try encoder.encode(metadata)
+        try jsonData.write(to: metadataFileURL)
+        
+        return OptimizedTranscriptionData(
+            textFileURL: textFileURL,
+            textFileName: textFileName,
+            metadataFileURL: metadataFileURL,
+            metadataFileName: metadataFileName
+        )
     }
 }

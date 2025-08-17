@@ -177,6 +177,81 @@ final class Recording: Identifiable {
         self.segmentsData = WhisperKitTranscriptionService.shared.segmentsToJSON(segments)
     }
     
+    /// 特定のセグメントのテキストを更新（タイムスタンプは保持）
+    func updateSegment(id: UUID, newText: String) {
+        var segments = self.segments
+        
+        if let index = segments.firstIndex(where: { $0.id == id }) {
+            // オリジナルのセグメントを保存（初回編集時のみ）
+            if originalSegmentsData == nil {
+                originalSegmentsData = segmentsData
+            }
+            
+            // セグメントのテキストのみ更新（タイムスタンプとIDは保持）
+            segments[index] = TranscriptionSegment(
+                startTime: segments[index].startTime,
+                endTime: segments[index].endTime,
+                text: newText,
+                confidence: segments[index].confidence,
+                id: segments[index].id
+            )
+            
+            // セグメントデータを更新
+            setSegments(segments)
+            
+            // 編集日時を更新
+            lastEditDate = Date()
+            
+            // タイムスタンプ有効性を分析
+            analyzeSegmentEditImpact(segmentId: id, originalText: segments[index].text, newText: newText)
+            
+            // 全体の文字起こしテキストも更新
+            updateTranscriptionFromSegments()
+        }
+    }
+    
+    /// セグメントから全体の文字起こしテキストを再構築
+    private func updateTranscriptionFromSegments() {
+        let segments = self.segments
+        let newTranscription = segments.map { $0.text }.joined(separator: "\n")
+        
+        // オリジナルの文字起こしを保存（初回編集時のみ）
+        if originalTranscription == nil {
+            originalTranscription = transcription
+        }
+        
+        transcription = newTranscription
+    }
+    
+    /// セグメント単位での編集影響度を分析
+    private func analyzeSegmentEditImpact(segmentId: UUID, originalText: String, newText: String) {
+        let editDistance = levenshteinDistance(originalText, newText)
+        let maxLength = max(originalText.count, newText.count)
+        
+        if maxLength == 0 {
+            // 空のテキストの場合は影響なし
+            return
+        }
+        
+        let changeRatio = Float(editDistance) / Float(maxLength)
+        
+        // セグメント単位での編集では、タイムスタンプの部分的な有効性を判定
+        if changeRatio < 0.1 {
+            // 軽微な編集（10%未満の変更）- タイムスタンプは有効
+            if timestampValidity == .valid {
+                timestampValidity = .valid
+            }
+        } else if changeRatio < 0.3 {
+            // 中程度の編集（30%未満の変更）- 部分的に有効
+            timestampValidity = .partialValid
+        } else {
+            // 大幅な編集（30%以上の変更）- タイムスタンプ無効
+            timestampValidity = .invalid
+        }
+        
+        print("📝 Segment edit impact: changeRatio=\(changeRatio), validity=\(timestampValidity)")
+    }
+    
     /// タイムスタンプ付きテキストを動的生成
     var dynamicTimestampedText: String {
         let segments = self.segments

@@ -126,6 +126,7 @@ struct RecordingTabView: View {
                 
                 UnifiedAudioMeter(
                     audioService: viewModel.audioService,
+                    recordingViewModel: viewModel,
                     isRecording: true,
                     isPaused: viewModel.isPaused,
                     showActiveAnimation: true
@@ -170,6 +171,7 @@ struct RecordingTabView: View {
                 // 統一デザインの待機状態録音バー
                 UnifiedAudioMeter(
                     audioService: viewModel.audioService,
+                    recordingViewModel: viewModel,
                     isRecording: false,
                     isPaused: false,
                     showActiveAnimation: false

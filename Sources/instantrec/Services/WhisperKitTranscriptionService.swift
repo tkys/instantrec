@@ -31,13 +31,14 @@ class MemoryMonitorService: ObservableObject {
 
 /// 文字起こしセグメントデータ
 struct TranscriptionSegment: Codable, Identifiable {
-    var id = UUID()
+    let id: UUID
     let startTime: Double      // 開始時間（秒）
     let endTime: Double        // 終了時間（秒）
     let text: String          // セグメントテキスト
     let confidence: Float?    // 信頼度（将来拡張用）
     
-    init(startTime: Double, endTime: Double, text: String, confidence: Float? = nil) {
+    init(startTime: Double, endTime: Double, text: String, confidence: Float? = nil, id: UUID = UUID()) {
+        self.id = id
         self.startTime = startTime
         self.endTime = endTime
         self.text = text

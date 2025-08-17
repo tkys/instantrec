@@ -23,7 +23,7 @@ struct RecordingsListView: View {
                 // 文字起こし進捗表示（実行中のみ表示）
                 if whisperService.isTranscribing {
                     TranscriptionProgressView(
-                        progress: whisperService.transcriptionProgress,
+                        progress: Float(whisperService.transcriptionProgress),
                         stage: whisperService.transcriptionStage,
                         estimatedTimeRemaining: nil
                     )
