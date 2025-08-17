@@ -23,6 +23,16 @@ class RecordingViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var showingErrorAlert = false
     @Published var canRetryOperation = false
+    
+    // 最後に失敗した操作を記録（自動録音開始防止のため）
+    private var lastFailedOperation: FailedOperation? = nil
+    
+    enum FailedOperation {
+        case startRecording
+        case stopRecording
+        case transcription
+        case fileAccess
+    }
 
     var audioService = AudioService()
     private let memoryMonitor = MemoryMonitorService.shared
@@ -177,10 +187,13 @@ class RecordingViewModel: ObservableObject {
         // ナビゲーション状態をリセット
         navigateToList = false
         
-        // リストから戻ってきた時は即座に録音開始（設定に関係なく）
+        // 🛡️ セキュリティ修正: 自動録音開始を削除
+        // ユーザーが明示的に録音ボタンを押すまで録音開始しない
+        print("🔄 returnFromList: Navigation reset, waiting for user input")
+        
+        // 手動録音ボタンを表示してユーザーの明示的な操作を促す
         if permissionStatus == .granted && !isRecording {
-            print("🚀 returnFromList: Starting immediate recording")
-            startRecording()
+            showManualRecordButton = true
         }
     }
     
@@ -188,10 +201,13 @@ class RecordingViewModel: ObservableObject {
         print("🔄 navigateToRecording called")
         navigateToList = false
         
-        // 一覧画面からの録音開始は設定に関係なく即座に録音開始
+        // 🛡️ セキュリティ修正: 自動録音開始を削除
+        // ユーザーが明示的に録音ボタンを押すまで録音開始しない
+        print("🔄 navigateToRecording: Navigation reset, waiting for user input")
+        
+        // 手動録音ボタンを表示してユーザーの明示的な操作を促す
         if permissionStatus == .granted && !isRecording {
-            print("🚀 navigateToRecording: Starting immediate recording")
-            startRecording()
+            showManualRecordButton = true
         }
     }
     
@@ -211,13 +227,18 @@ class RecordingViewModel: ObservableObject {
         let backgroundDuration = Date().timeIntervalSince(lastBackground)
         print("⏱️ Background duration: \(String(format: "%.1f", backgroundDuration))s")
         
-        // 30秒以上バックグラウンドにいた場合は即座録音モードへ
+        // 30秒以上バックグラウンドにいた場合は録音画面に戻る（自動録音なし）
         if backgroundDuration > 30.0 {
-            print("🚀 Auto-returning to recording due to long background")
+            print("🔄 Auto-returning to recording view due to long background (no auto-record)")
             
-            // 一覧画面を閉じて録音画面に戻る
+            // 一覧画面を閉じて録音画面に戻る（録音は開始しない）
             if navigateToList {
-                navigateToRecording()
+                navigateToList = false
+                // 🛡️ セキュリティ修正: navigateToRecording()を直接呼ばない
+                // 手動録音ボタンを表示してユーザーの明示的な操作を促す
+                if permissionStatus == .granted && !isRecording {
+                    showManualRecordButton = true
+                }
             }
         }
         
@@ -610,13 +631,23 @@ class RecordingViewModel: ObservableObject {
         
         print("🚨 AudioService error received: \(error.localizedDescription)")
         
+        // 失敗した操作を記録（セキュリティ重要: 録音の自動開始防止）
+        if isRecording {
+            lastFailedOperation = .stopRecording
+        } else {
+            // 録音開始時のエラーでも、自動再試行は許可しない
+            lastFailedOperation = .startRecording
+        }
+        
         // エラーメッセージを設定
         if let audioError = error as? AudioServiceError {
             errorMessage = audioError.localizedDescription
-            canRetryOperation = audioError.shouldRetry
+            // 録音開始エラーの場合は再試行を禁止（セキュリティ措置）
+            canRetryOperation = audioError.shouldRetry && lastFailedOperation != .startRecording
         } else {
             errorMessage = error.localizedDescription
-            canRetryOperation = true
+            // 録音開始エラーの場合は再試行を禁止（セキュリティ措置）
+            canRetryOperation = lastFailedOperation != .startRecording
         }
         
         // アラート表示フラグを設定
@@ -663,6 +694,7 @@ class RecordingViewModel: ObservableObject {
         errorMessage = nil
         showingErrorAlert = false
         canRetryOperation = false
+        lastFailedOperation = nil  // 失敗操作記録もクリア（セキュリティ措置）
     }
     
     /// 操作のリトライ
@@ -671,10 +703,35 @@ class RecordingViewModel: ObservableObject {
         
         clearError()
         
-        // 前回失敗した操作に応じてリトライ
-        if !isRecording && permissionStatus == .granted {
-            startRecording()
+        // セキュリティ重要: 明示的にユーザーが録音を開始した場合のみ再試行を許可
+        // 勝手に録音が開始される問題を防ぐため、録音開始の自動再試行は削除
+        guard let failedOperation = lastFailedOperation else {
+            print("⚠️ No failed operation to retry")
+            return
         }
+        
+        switch failedOperation {
+        case .startRecording:
+            // 録音開始の自動再試行は安全上の理由で禁止
+            print("🛡️ Recording start retry blocked for security - user must manually restart")
+            canRetryOperation = false
+            
+        case .stopRecording:
+            // 録音停止の再試行は安全
+            if isRecording {
+                stopRecording()
+            }
+            
+        case .transcription:
+            // 文字起こしの再試行は安全
+            print("🔄 Retrying transcription operation")
+            
+        case .fileAccess:
+            // ファイルアクセスの再試行は安全
+            print("🔄 Retrying file access operation")
+        }
+        
+        lastFailedOperation = nil
     }
     
     deinit {
