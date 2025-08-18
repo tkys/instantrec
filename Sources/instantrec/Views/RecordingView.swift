@@ -808,9 +808,7 @@ struct RecordingView: View {
                 .fill(Color.clear)
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    Task {
-                        await handleRecordingTapAsync()
-                    }
+                    handleRecordingTap()
                 }
             
             VStack(spacing: 40) {
@@ -847,9 +845,7 @@ struct RecordingView: View {
                                 audioService: viewModel.audioService,
                                 viewModel: viewModel,
                                 stopAction: { 
-                                    Task {
-                                        await stopRecordingWithTranscription()
-                                    }
+                                    viewModel.stopRecording()
                                 },
                                 isManualStart: (viewModel.showManualRecordButton == false && recordingSettings.recordingStartMode == .manual)
                             )
@@ -928,9 +924,7 @@ struct RecordingView: View {
                                 .foregroundColor(Color(UIColor.secondaryLabel))
                             
                             Button(action: { 
-                                Task {
-                                    await startRecordingWithTranscription(manual: true)
-                                }
+                                viewModel.startManualRecording()
                             }) {
                                 HStack {
                                     Image(systemName: "record.circle.fill")
@@ -1066,6 +1060,14 @@ struct RecordingView: View {
         }
     }
     
+    // MARK: - Helper Functions
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+    
     // MARK: - Actions
     
     private func handleRecordingTap() {
@@ -1090,7 +1092,7 @@ struct RecordingView: View {
 struct PostRecordingProgressView: View {
     @ObservedObject var viewModel: RecordingViewModel
     @StateObject private var whisperService = WhisperKitTranscriptionService.shared
-    @State private var animatedProgress: Float = 0.0
+    @State private var animatedProgress: Double = 0.0
     
     var body: some View {
         VStack(spacing: 24) {
@@ -1106,11 +1108,11 @@ struct PostRecordingProgressView: View {
                     .foregroundColor(.primary)
                 
                 if let recording = viewModel.lastCompletedRecording {
-                    let formatter = DateComponentsFormatter()
-                    formatter.allowedUnits = [.minute, .second]
-                    formatter.zeroFormattingBehavior = .pad
+                    let minutes = Int(recording.duration) / 60
+                    let seconds = Int(recording.duration) % 60
+                    let formattedDuration = String(format: "%d:%02d", minutes, seconds)
                     
-                    Text("録音時間: \(formatter.string(from: recording.duration) ?? "不明")")
+                    Text("録音時間: \(formattedDuration)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }

@@ -1,0 +1,16 @@
+{
+  "serena": {
+    "type": "stdio",
+    "command": "uvx",
+    "args": [
+      "--from",
+      "git+https://github.com/oraios/serena",
+      "serena-mcp-server",
+      "--context",
+      "ide-assistant",
+      "--project",
+      "/Users/m1macmini/playground/instantrec"
+    ],
+    "env": {}
+  }
+}

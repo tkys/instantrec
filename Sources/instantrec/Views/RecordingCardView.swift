@@ -230,4 +230,18 @@ extension Recording {
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: createdAt, relativeTo: Date())
     }
+    
+    /// タイムスタンプデータが利用可能かどうか
+    var hasTimestamps: Bool {
+        return !segments.isEmpty || timestampedTranscription != nil
+    }
+    
+    /// 作成日時をフォーマットした文字列
+    var formattedCreatedAt: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        formatter.locale = Locale(identifier: "ja_JP")
+        return formatter.string(from: createdAt)
+    }
 }

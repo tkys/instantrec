@@ -2581,20 +2581,10 @@ extension AudioService {
             )
         }
         
-        // 長時間録音での品質維持
-        if recordingDuration > 300 { // 5分以上
-            return RecordingGuidance(
-                type: .longRecording,
-                title: "長時間録音中",
-                message: "音質を維持するため、定期的にマイクとの距離を確認してください",
-                actionTitle: nil,
-                action: nil
-            )
-        }
+        // Note: 長時間録音チェックはRecordingViewModelで実装
         
         return nil
     }
-}
 }
 
 // MARK: - 録音品質統計データ構造

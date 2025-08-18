@@ -22,6 +22,22 @@ struct RecordingDetailView: View {
         recording.getAvailableDisplayModes()
     }
     
+    /// 推奨表示モード（4つから3つに絞る）
+    private func getRecommendedDisplayModes() -> [TranscriptionDisplayMode] {
+        let available = availableDisplayModes
+        
+        // 優先順位: plainText > timestamped > segmented
+        // timeline は使用頻度が低いため除外
+        return available.filter { mode in
+            switch mode {
+            case .plainText, .timestamped, .segmented:
+                return true
+            case .timeline:
+                return false
+            }
+        }
+    }
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: HierarchicalSpacing.level1) {
@@ -207,42 +223,92 @@ struct RecordingDetailView: View {
             
             Spacer()
             
-            Button("Edit") {
-                startTranscriptionEdit()
+            // コピー機能ボタン群
+            HStack(spacing: 8) {
+                Menu {
+                    Button("テキストのみコピー", systemImage: "doc.on.doc") {
+                        copyTranscriptionText()
+                    }
+                    
+                    if recording.hasTimestamps {
+                        Button("タイムスタンプ付きコピー", systemImage: "clock.badge.checkmark") {
+                            copyTranscriptionWithTimestamps()
+                        }
+                    }
+                    
+                    Button("すべてをシェア", systemImage: "square.and.arrow.up") {
+                        shareRecording()
+                    }
+                } label: {
+                    Image(systemName: "square.on.square")
+                        .font(.title3)
+                        .foregroundColor(.blue)
+                }
+                
+                Button("Edit") {
+                    startTranscriptionEdit()
+                }
+                .font(.caption)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.blue.opacity(0.1))
+                .foregroundColor(.blue)
+                .cornerRadius(8)
             }
-            .font(.caption)
         }
     }
     
     @ViewBuilder
     private var displayModeSelector: some View {
-        HStack {
-            Text("表示モード: \(selectedDisplayMode.displayName)")
-                .font(.caption)
-                .foregroundColor(.secondary)
+        VStack(spacing: 12) {
+            // 現在の表示モード表示
+            HStack {
+                Text("表示モード")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Spacer()
+                
+                Text(selectedDisplayMode.displayName)
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
+            }
             
-            Spacer()
-            
-            Menu {
-                ForEach(availableDisplayModes, id: \.self) { mode in
+            // 改善されたモード選択ボタン群
+            HStack(spacing: 12) {
+                ForEach(getRecommendedDisplayModes(), id: \.self) { mode in
                     Button(action: {
                         withAnimation(.easeInOut(duration: 0.3)) {
                             selectedDisplayMode = mode
                         }
                     }) {
-                        Label(mode.displayName, systemImage: mode.iconName)
+                        VStack(spacing: 4) {
+                            Image(systemName: mode.iconName)
+                                .font(.title3)
+                                .foregroundColor(selectedDisplayMode == mode ? .white : .blue)
+                            
+                            Text(mode.displayName)
+                                .font(.caption2)
+                                .foregroundColor(selectedDisplayMode == mode ? .white : .blue)
+                                .lineLimit(1)
+                        }
+                        .frame(width: 70, height: 60)
+                        .background(
+                            selectedDisplayMode == mode ? 
+                            Color.blue : Color.blue.opacity(0.1)
+                        )
+                        .cornerRadius(12)
                     }
+                    .buttonStyle(PlainButtonStyle())
                 }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                
+                Spacer()
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
         .background(Color(.systemGray6))
-        .cornerRadius(6)
+        .cornerRadius(12)
     }
     
     @ViewBuilder
@@ -614,6 +680,70 @@ struct RecordingDetailView: View {
         print("🗑️ Delete recording: \(recording.fileName)")
         
         dismiss()
+    }
+    
+    // MARK: - Copy Functions
+    
+    /// テキストのみをクリップボードにコピー
+    private func copyTranscriptionText() {
+        guard let transcription = recording.transcription, !transcription.isEmpty else {
+            print("❌ No transcription available to copy")
+            return
+        }
+        
+        UIPasteboard.general.string = transcription
+        
+        // フィードバック
+        let impactGenerator = UIImpactFeedbackGenerator(style: .light)
+        impactGenerator.impactOccurred()
+        
+        print("📋 Transcription text copied to clipboard")
+    }
+    
+    /// タイムスタンプ付きでクリップボードにコピー
+    private func copyTranscriptionWithTimestamps() {
+        guard recording.hasTimestamps else {
+            copyTranscriptionText() // フォールバック
+            return
+        }
+        
+        let formattedText = generateTimestampedText()
+        UIPasteboard.general.string = formattedText
+        
+        // フィードバック
+        let impactGenerator = UIImpactFeedbackGenerator(style: .light)
+        impactGenerator.impactOccurred()
+        
+        print("📋 Timestamped transcription copied to clipboard")
+    }
+    
+    /// タイムスタンプ付きテキストを生成
+    private func generateTimestampedText() -> String {
+        guard !recording.segments.isEmpty else {
+            // セグメントがない場合はタイムスタンプ付きテキストから生成
+            if let timestampedText = recording.timestampedTranscription {
+                return timestampedText
+            }
+            return recording.transcription ?? ""
+        }
+        
+        // セグメントからタイムスタンプ付きテキストを生成
+        let header = "録音: \(recording.displayName)\n日時: \(recording.formattedCreatedAt)\n時間: \(formatDuration(recording.duration))\n\n"
+        
+        let segmentTexts = recording.segments.map { segment in
+            let startTime = formatTimestamp(segment.startTime)
+            let endTime = formatTimestamp(segment.endTime)
+            return "[\(startTime) - \(endTime)] \(segment.text)"
+        }
+        
+        return header + segmentTexts.joined(separator: "\n\n")
+    }
+    
+    /// タイムスタンプをフォーマット
+    private func formatTimestamp(_ timestamp: TimeInterval) -> String {
+        let minutes = Int(timestamp) / 60
+        let seconds = Int(timestamp) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 }
 
