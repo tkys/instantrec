@@ -50,6 +50,12 @@ class RecordingViewModel: ObservableObject {
     @ObservedObject private var backgroundAudioService = BackgroundAudioService.shared
     @ObservedObject private var appLifecycleManager = AppLifecycleManager()
     @Published var backgroundRecordingEnabled = false
+    
+    // 録音終了後の進捗表示・遷移制御
+    @Published var showingPostRecordingProgress = false
+    @Published var currentTranscriptionProgress: Float = 0.0
+    @Published var lastCompletedRecording: Recording? = nil
+    @Published var showingPostRecordingActions = false
 
     enum PermissionStatus {
         case unknown, granted, denied
@@ -354,11 +360,69 @@ class RecordingViewModel: ObservableObject {
                 // Auto Transcription処理
                 processAutoTranscription(for: newRecording, fileName: fileName)
                 
-                navigateToList = true
+                // 録音終了後の行動を設定に基づいて決定
+                handlePostRecordingBehavior(newRecording: newRecording)
             } catch {
                 print("Failed to save recording: \(error.localizedDescription)")
             }
         }
+    }
+    
+    // MARK: - 録音終了後の行動制御
+    
+    /// 録音終了後の行動を設定に基づいて決定
+    private func handlePostRecordingBehavior(newRecording: Recording) {
+        print("📝 Handling post-recording behavior: \(recordingSettings.postRecordingBehavior.displayName)")
+        
+        // 録音情報を保存
+        lastCompletedRecording = newRecording
+        
+        switch recordingSettings.postRecordingBehavior {
+        case .stayOnRecording:
+            // 録音画面に留まり、文字起こし進捗を表示
+            showingPostRecordingProgress = true
+            navigateToList = false
+            print("📱 Staying on recording view with progress display")
+            
+        case .navigateToList:
+            // 従来通りリスト画面に遷移
+            navigateToList = true
+            showingPostRecordingProgress = false
+            print("📱 Navigating to list view")
+            
+        case .askUser:
+            // ユーザーに行動選択を確認
+            showingPostRecordingActions = true
+            navigateToList = false
+            print("📱 Asking user for post-recording action")
+        }
+    }
+    
+    /// ユーザーがリスト遷移を選択
+    func navigateToListFromActions() {
+        showingPostRecordingActions = false
+        showingPostRecordingProgress = false
+        navigateToList = true
+        print("📱 User chose to navigate to list")
+    }
+    
+    /// ユーザーが録音画面に留まることを選択
+    func stayOnRecordingFromActions() {
+        showingPostRecordingActions = false
+        showingPostRecordingProgress = true
+        print("📱 User chose to stay on recording view")
+    }
+    
+    /// 新しい録音を続ける
+    func startNewRecording() {
+        showingPostRecordingProgress = false
+        showingPostRecordingActions = false
+        lastCompletedRecording = nil
+        currentTranscriptionProgress = 0.0
+        
+        // 新しい録音を開始
+        startRecording()
+        print("📱 Starting new recording")
     }
     
     private func processAutoTranscription(for recording: Recording, fileName: String) {

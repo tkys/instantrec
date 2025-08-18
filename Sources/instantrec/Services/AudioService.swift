@@ -42,11 +42,112 @@ enum RecordingMode: String, CaseIterable {
     }
 }
 
+// MARK: - 音量品質評価システム
+
+enum AudioVolumeQuality: String, CaseIterable {
+    case unknown = "unknown"
+    case excellent = "excellent"      // 0.1以上: 理想的
+    case good = "good"                // 0.05-0.1: 良好
+    case fair = "fair"                // 0.02-0.05: 普通
+    case poor = "poor"                // 0.01-0.02: 低い
+    case veryPoor = "veryPoor"        // 0.005-0.01: 非常に低い
+    case critical = "critical"        // 0.005未満: 危険
+    
+    var displayName: String {
+        switch self {
+        case .unknown: return "評価中"
+        case .excellent: return "最高"
+        case .good: return "良好"
+        case .fair: return "普通"
+        case .poor: return "低い"
+        case .veryPoor: return "非常に低い"
+        case .critical: return "危険"
+        }
+    }
+    
+    var successProbability: Float {
+        switch self {
+        case .unknown: return 0.5
+        case .excellent: return 0.95
+        case .good: return 0.85
+        case .fair: return 0.7
+        case .poor: return 0.4
+        case .veryPoor: return 0.2
+        case .critical: return 0.05
+        }
+    }
+    
+    var warningMessage: String? {
+        switch self {
+        case .unknown, .excellent, .good: return nil
+        case .fair: return "音量がやや低めです。マイクに近づくことをお勧めします"
+        case .poor: return "音量が低すぎます。マイクにもう少し近づいてください"
+        case .veryPoor: return "音量が非常に低いです。文字起こしが失敗する可能性があります"
+        case .critical: return "音量が危険レベルです。録音を停止して環境を改善してください"
+        }
+    }
+    
+    var color: String {
+        switch self {
+        case .unknown: return "gray"
+        case .excellent: return "green"
+        case .good: return "blue"
+        case .fair: return "yellow"
+        case .poor: return "orange"
+        case .veryPoor: return "red"
+        case .critical: return "red"
+        }
+    }
+}
+
+// MARK: - Recording Guidance Models
+
+/// 録音ガイダンス情報
+struct RecordingGuidance {
+    let type: GuidanceType
+    let title: String
+    let message: String
+    let actionTitle: String?
+    let action: (() -> Void)?
+    
+    enum GuidanceType {
+        case volumeTooLow
+        case poorQuality
+        case noisyEnvironment
+        case longRecording
+        case batteryLow
+        case storageWarning
+    }
+}
+
 class AudioService: ObservableObject {
     var audioRecorder: AVAudioRecorder?
     var audioPlayer: AVAudioPlayer?
     @Published var permissionGranted = false
     @Published var audioLevel: Float = 0.0
+    
+    // MARK: - リアルタイム音量品質モニタリング
+    @Published var isVolumeTooLow: Bool = false
+    @Published var volumeQuality: AudioVolumeQuality = .unknown
+    @Published var transcriptionSuccessProbability: Float = 0.0
+    @Published var recordingQualityWarning: String? = nil
+    
+    // 音量品質追跡
+    private var lowVolumeDetectionCount: Int = 0
+    private var totalVolumeChecks: Int = 0
+    private var volumeHistoryBuffer: [Float] = []
+    private let volumeHistorySize = 50 // 5秒間の履歴（0.1秒間隔）
+    
+    // MARK: - 自動ゲイン調整システム
+    @Published var autoGainEnabled: Bool = true
+    @Published var currentGainLevel: Float = 15.0
+    @Published var isGainAdjusting: Bool = false
+    
+    // ゲイン調整履歴
+    private var gainAdjustmentHistory: [Float] = []
+    private var consecutiveLowVolumeCount: Int = 0
+    private var lastGainAdjustmentTime: Date = Date()
+    private let gainAdjustmentCooldown: TimeInterval = 2.0 // 2秒間隔での調整
     
     // ログ出力制御用カウンター
     private var adaptiveGainLogCount = 0
@@ -54,11 +155,203 @@ class AudioService: ObservableObject {
     // メモリ監視システム
     private let memoryMonitor = MemoryMonitorService.shared
     
+    // 録音品質統計
+    private var recordingQualityStats = RecordingQualityStats(
+        averageLevel: 0.0,
+        currentQuality: .unknown,
+        lowVolumeRatio: 0.0,
+        transcriptionSuccessProbability: 0.0,
+        totalSamples: 0,
+        gainAdjustmentCount: 0
+    )
+    
     // デバッグ用: 音声レベルを直接設定
     func setTestAudioLevel(_ level: Float) {
         DispatchQueue.main.async {
             self.audioLevel = max(0.0, min(1.0, level))
         }
+    }
+    
+    // MARK: - 自動ゲイン調整実装
+    
+    /// 音量品質に基づく自動ゲイン調整
+    private func checkAndAdjustGain(currentLevel: Float, quality: AudioVolumeQuality) {
+        guard autoGainEnabled else { return }
+        
+        // クールダウン期間チェック
+        let timeSinceLastAdjustment = Date().timeIntervalSince(lastGainAdjustmentTime)
+        guard timeSinceLastAdjustment >= gainAdjustmentCooldown else { return }
+        
+        // 低音量カウント更新
+        if quality == .poor || quality == .veryPoor || quality == .critical {
+            consecutiveLowVolumeCount += 1
+        } else {
+            consecutiveLowVolumeCount = 0 // 品質が改善したらリセット
+        }
+        
+        // 連続して低音量が3回以上検出された場合にゲイン調整
+        guard consecutiveLowVolumeCount >= 3 else { return }
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            self.isGainAdjusting = true
+            
+            // 現在の品質に応じたゲイン調整量を決定
+            let gainIncrease: Float
+            switch quality {
+            case .critical:
+                gainIncrease = 8.0 // 大幅増加
+            case .veryPoor:
+                gainIncrease = 5.0 // 中程度増加
+            case .poor:
+                gainIncrease = 3.0 // 軽微増加
+            default:
+                gainIncrease = 0.0
+            }
+            
+            // 新しいゲインレベルを計算（最大50dBに制限）
+            let newGainLevel = min(50.0, self.currentGainLevel + gainIncrease)
+            
+            if newGainLevel > self.currentGainLevel {
+                print("🔊 Auto-gain adjustment: \(String(format: "%.1f", self.currentGainLevel))dB → \(String(format: "%.1f", newGainLevel))dB (Quality: \(quality))")
+                
+                self.currentGainLevel = newGainLevel
+                self.gainAdjustmentHistory.append(newGainLevel)
+                self.lastGainAdjustmentTime = Date()
+                self.consecutiveLowVolumeCount = 0 // 調整後リセット
+                
+                // 実際の録音ゲインを適用
+                self.applyGainToRecording(newGainLevel)
+                
+                // UI更新のため少し遅延してからフラグをリセット
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    self.isGainAdjusting = false
+                }
+            } else {
+                self.isGainAdjusting = false
+            }
+        }
+    }
+    
+    /// 録音エンジンにゲイン値を適用
+    private func applyGainToRecording(_ gainLevel: Float) {
+        guard let inputNode = inputNode else {
+            print("❌ Cannot apply gain: inputNode is nil")
+            return
+        }
+        
+        // AVAudioUnitEQを使用してゲインを適用
+        if let voiceIsolationNode = voiceIsolationNode {
+            voiceIsolationNode.globalGain = gainLevel
+            print("🎛️ Applied gain \(String(format: "%.1f", gainLevel))dB to recording")
+        }
+        
+        // 音量品質統計を更新
+        DispatchQueue.main.async { [weak self] in
+            self?.recordingQualityStats.gainAdjustmentCount += 1
+        }
+    }
+    
+    // MARK: - インテリジェント音声前処理システム
+    
+    /// 音声データを文字起こし用に最適化
+    func preprocessAudioForTranscription(_ audioData: Data) -> Data {
+        // 基本的な前処理パイプライン
+        var processedData = audioData
+        
+        // 1. 音量正規化
+        processedData = normalizeAudioVolume(processedData)
+        
+        // 2. ノイズ軽減フィルタ適用
+        if noiseReductionLevel > 0 {
+            processedData = applyNoiseReduction(processedData, level: noiseReductionLevel)
+        }
+        
+        // 3. 音声周波数帯域に最適化
+        processedData = optimizeForSpeechFrequency(processedData)
+        
+        print("🎛️ Audio preprocessing completed - original: \(audioData.count) bytes, processed: \(processedData.count) bytes")
+        
+        return processedData
+    }
+    
+    /// 音量正規化処理
+    private func normalizeAudioVolume(_ audioData: Data) -> Data {
+        // 音声データの音量を適切なレベルに正規化
+        // 基本的な実装では、ピーク音量を分析して適切な増幅率を適用
+        
+        guard audioData.count > 0 else { return audioData }
+        
+        // PCM16ビットデータとして解析
+        let sampleCount = audioData.count / 2
+        let samples = audioData.withUnsafeBytes { bytes in
+            Array(bytes.bindMemory(to: Int16.self))
+        }
+        
+        // ピーク値を検出
+        let maxSample = samples.map { abs($0) }.max() ?? 1
+        let targetPeak: Int16 = Int16.max / 2 // 50%をターゲット
+        
+        if maxSample > 0 && maxSample < targetPeak {
+            let amplificationFactor = Float(targetPeak) / Float(maxSample)
+            let amplifiedSamples = samples.map { sample in
+                Int16(min(Int32(Int16.max), max(Int32(Int16.min), Int32(Float(sample) * amplificationFactor))))
+            }
+            
+            return Data(bytes: amplifiedSamples, count: amplifiedSamples.count * 2)
+        }
+        
+        return audioData
+    }
+    
+    /// ノイズ軽減フィルタ
+    private func applyNoiseReduction(_ audioData: Data, level: Float) -> Data {
+        // 基本的なノイズゲート実装
+        guard audioData.count > 0 else { return audioData }
+        
+        let samples = audioData.withUnsafeBytes { bytes in
+            Array(bytes.bindMemory(to: Int16.self))
+        }
+        
+        // ノイズゲートしきい値（音量品質に基づく）
+        let noiseThreshold = Int16(Float(Int16.max) * 0.01 * level)
+        
+        let filteredSamples = samples.map { sample in
+            abs(sample) < noiseThreshold ? Int16(0) : sample
+        }
+        
+        return Data(bytes: filteredSamples, count: filteredSamples.count * 2)
+    }
+    
+    /// 音声周波数帯域最適化
+    private func optimizeForSpeechFrequency(_ audioData: Data) -> Data {
+        // 音声周波数帯域（300Hz-3400Hz）に最適化
+        // 基本的な実装では、単純なハイパス・ローパスフィルタのシミュレーション
+        
+        guard audioData.count > 0 else { return audioData }
+        
+        let samples = audioData.withUnsafeBytes { bytes in
+            Array(bytes.bindMemory(to: Int16.self))
+        }
+        
+        // 簡易的な周波数フィルタリング（移動平均を使用）
+        var filteredSamples: [Int16] = []
+        let windowSize = 3
+        
+        for i in 0..<samples.count {
+            let startIndex = max(0, i - windowSize/2)
+            let endIndex = min(samples.count - 1, i + windowSize/2)
+            
+            let sum = (startIndex...endIndex).reduce(0) { sum, index in
+                sum + Int32(samples[index])
+            }
+            
+            let average = Int16(sum / Int32(endIndex - startIndex + 1))
+            filteredSamples.append(average)
+        }
+        
+        return Data(bytes: filteredSamples, count: filteredSamples.count * 2)
     }
     
     // デバッグ用: AudioEngine録音時のシミュレート音声レベル
@@ -455,6 +748,9 @@ class AudioService: ObservableObject {
     // MARK: - Enhanced Recording with Error Handling
     
     func startRecording(fileName: String) -> URL? {
+        // 録音開始時に品質統計をリセット
+        resetRecordingQualityStats()
+        
         do {
             return try startRecordingWithErrorHandling(fileName: fileName)
         } catch {
@@ -894,6 +1190,9 @@ class AudioService: ObservableObject {
         
         DispatchQueue.main.async {
             self.audioLevel = newLevel
+            
+            // リアルタイム音量品質評価
+            self.updateVolumeQuality(level: newLevel)
             
             // 最適化された詳細ログ（負荷軽減のためより少ない頻度）
             self.audioLevelUpdateCounter += 1
@@ -1348,6 +1647,9 @@ class AudioService: ObservableObject {
         
         DispatchQueue.main.async {
             self.audioLevel = newLevel
+            
+            // リアルタイム音量品質評価（AVAudioRecorder用）
+            self.updateVolumeQuality(level: newLevel)
         }
         
         // 高頻度デバッグログ（リアルタイム反応確認）
@@ -2086,4 +2388,238 @@ extension Notification.Name {
     static let audioServiceRecordingError = Notification.Name("audioServiceRecordingError")
     static let audioServiceMemoryWarning = Notification.Name("audioServiceMemoryWarning")
     static let audioServiceDiskSpaceWarning = Notification.Name("audioServiceDiskSpaceWarning")
+}
+
+// MARK: - AudioService Extension: リアルタイム音量品質評価
+
+extension AudioService {
+    
+    /// リアルタイム音量品質評価
+    private func updateVolumeQuality(level: Float) {
+        // 音量履歴バッファに追加
+        volumeHistoryBuffer.append(level)
+        if volumeHistoryBuffer.count > volumeHistorySize {
+            volumeHistoryBuffer.removeFirst()
+        }
+        
+        totalVolumeChecks += 1
+        
+        // 音量品質を評価
+        let quality = evaluateVolumeQuality(level: level)
+        
+        // 低音量カウント
+        if quality == .poor || quality == .veryPoor || quality == .critical {
+            lowVolumeDetectionCount += 1
+            consecutiveLowVolumeCount += 1
+        } else {
+            consecutiveLowVolumeCount = 0
+        }
+        
+        // 自動ゲイン調整をトリガー
+        if autoGainEnabled {
+            checkAndAdjustGain(currentLevel: level, quality: quality)
+        }
+        
+        // UIの更新
+        DispatchQueue.main.async {
+            self.volumeQuality = quality
+            self.transcriptionSuccessProbability = quality.successProbability
+            self.recordingQualityWarning = quality.warningMessage
+            self.isVolumeTooLow = (quality == .poor || quality == .veryPoor || quality == .critical)
+        }
+        
+        // 定期的なログ出力（デバッグ用）
+        if totalVolumeChecks % 50 == 0 {
+            let averageLevel = volumeHistoryBuffer.reduce(0, +) / Float(volumeHistoryBuffer.count)
+            let lowVolumeRatio = Float(lowVolumeDetectionCount) / Float(totalVolumeChecks)
+            print("📊 Volume Quality: \(quality.displayName), Average: \(String(format: "%.3f", averageLevel)), Low Ratio: \(String(format: "%.1f", lowVolumeRatio * 100))%")
+        }
+    }
+    
+    /// 音量レベルから品質を評価
+    private func evaluateVolumeQuality(level: Float) -> AudioVolumeQuality {
+        // より厳しい閾値で評価（WhisperKit成功率を考慮）
+        if level >= 0.1 {
+            return .excellent
+        } else if level >= 0.05 {
+            return .good
+        } else if level >= 0.02 {
+            return .fair
+        } else if level >= 0.01 {
+            return .poor
+        } else if level >= 0.005 {
+            return .veryPoor
+        } else {
+            return .critical
+        }
+    }
+    
+    /// 録音品質の統計情報を取得
+    func getRecordingQualityStats() -> RecordingQualityStats {
+        let averageLevel = volumeHistoryBuffer.isEmpty ? 0.0 : volumeHistoryBuffer.reduce(0, +) / Float(volumeHistoryBuffer.count)
+        let lowVolumeRatio = totalVolumeChecks > 0 ? Float(lowVolumeDetectionCount) / Float(totalVolumeChecks) : 0.0
+        let currentQuality = volumeQuality
+        
+        return RecordingQualityStats(
+            averageLevel: averageLevel,
+            currentQuality: currentQuality,
+            lowVolumeRatio: lowVolumeRatio,
+            transcriptionSuccessProbability: transcriptionSuccessProbability,
+            totalSamples: totalVolumeChecks
+        )
+    }
+    
+    /// 録音品質統計をリセット
+    func resetRecordingQualityStats() {
+        volumeHistoryBuffer.removeAll()
+        lowVolumeDetectionCount = 0
+        totalVolumeChecks = 0
+        
+        // ゲイン調整関連統計のリセット
+        consecutiveLowVolumeCount = 0
+        gainAdjustmentHistory.removeAll()
+        
+        DispatchQueue.main.async {
+            self.volumeQuality = .unknown
+            self.transcriptionSuccessProbability = 0.0
+            self.recordingQualityWarning = nil
+            self.isVolumeTooLow = false
+            self.isGainAdjusting = false
+            self.currentGainLevel = 15.0 // デフォルト値にリセット
+        }
+    }
+
+    
+    // MARK: - ユーザーガイダンス機能
+    
+    /// 手動ゲイン調整をトリガー（ユーザー操作による）
+    func triggerManualGainAdjustment() {
+        print("🎛️ Manual gain adjustment triggered by user")
+        
+        // 現在の音量レベルに基づいて調整
+        let currentLevel = audioLevel
+        let currentQuality = volumeQuality
+        
+        // ゲイン調整フラグを設定
+        isGainAdjusting = true
+        
+        // 適切なゲインレベルを計算
+        let targetGain = calculateOptimalGainForQuality(currentQuality)
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.currentGainLevel = targetGain
+            print("🎛️ Manual gain adjusted to: \(targetGain)dB")
+            
+            // 1秒後にフラグをリセット
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self.isGainAdjusting = false
+                print("🎛️ Gain adjustment completed")
+            }
+        }
+    }
+    
+    /// 音質に基づく最適ゲインレベル計算
+    private func calculateOptimalGainForQuality(_ quality: AudioVolumeQuality) -> Float {
+        switch quality {
+        case .critical:
+            return min(currentGainLevel + 8.0, 40.0)  // 最大8dB追加
+        case .veryPoor:
+            return min(currentGainLevel + 6.0, 35.0)  // 6dB追加
+        case .poor:
+            return min(currentGainLevel + 4.0, 30.0)  // 4dB追加
+        case .fair:
+            return min(currentGainLevel + 2.0, 25.0)  // 2dB追加
+        case .good, .excellent:
+            return max(currentGainLevel - 1.0, 15.0)  // やや減少
+        case .unknown:
+            return 20.0  // デフォルト値
+        }
+    }
+    
+    /// 録音品質予測メッセージ取得
+    func getQualityPredictionMessage() -> String? {
+        guard isRecording else { return nil }
+        
+        let successProbability = transcriptionSuccessProbability
+        
+        if successProbability >= 0.8 {
+            return "文字起こしの成功確率が高く、良好な音質です"
+        } else if successProbability >= 0.6 {
+            return "文字起こしは可能ですが、音質改善をお勧めします"
+        } else if successProbability >= 0.4 {
+            return "文字起こしが困難な可能性があります。音量を上げるか、マイクに近づいてください"
+        } else {
+            return "現在の音質では文字起こしが失敗する可能性が高いです。音声環境を改善してください"
+        }
+    }
+    
+    /// 録音ガイダンスのリアルタイム提案
+    func getCurrentRecordingGuidance() -> RecordingGuidance? {
+        guard isRecording else { return nil }
+        
+        // 音量が低い場合
+        if isVolumeTooLow {
+            return RecordingGuidance(
+                type: .volumeTooLow,
+                title: "音量が低すぎます",
+                message: "マイクに近づくか、より大きな声で話してください",
+                actionTitle: "音量調整",
+                action: { [weak self] in
+                    self?.triggerManualGainAdjustment()
+                }
+            )
+        }
+        
+        // 音質が不安定な場合
+        if volumeQuality == .poor || volumeQuality == .veryPoor {
+            return RecordingGuidance(
+                type: .poorQuality,
+                title: "音質が不安定です",
+                message: "周囲の騒音を減らし、はっきりと話してください",
+                actionTitle: "改善のヒント",
+                action: nil
+            )
+        }
+        
+        // 長時間録音での品質維持
+        if recordingDuration > 300 { // 5分以上
+            return RecordingGuidance(
+                type: .longRecording,
+                title: "長時間録音中",
+                message: "音質を維持するため、定期的にマイクとの距離を確認してください",
+                actionTitle: nil,
+                action: nil
+            )
+        }
+        
+        return nil
+    }
+}
+}
+
+// MARK: - 録音品質統計データ構造
+
+struct RecordingQualityStats {
+    var averageLevel: Float
+    var currentQuality: AudioVolumeQuality
+    var lowVolumeRatio: Float
+    var transcriptionSuccessProbability: Float
+    var totalSamples: Int
+    var gainAdjustmentCount: Int = 0 // ゲイン調整回数
+    
+    var isGoodQuality: Bool {
+        return averageLevel >= 0.02 && lowVolumeRatio < 0.3
+    }
+    
+    var qualityGrade: String {
+        if transcriptionSuccessProbability >= 0.8 {
+            return "A"
+        } else if transcriptionSuccessProbability >= 0.6 {
+            return "B" 
+        } else if transcriptionSuccessProbability >= 0.4 {
+            return "C"
+        } else {
+            return "D"
+        }
+    }
 }

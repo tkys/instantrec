@@ -27,6 +27,7 @@ struct SettingsView: View {
     @State private var showingAIModelSelection = false
     @State private var showingAudioQualitySelection = false
     @State private var showingLanguageSelection = false
+    @State private var showingPostRecordingBehaviorSelection = false
     @State private var autoTranscriptionEnabled: Bool
     @State private var autoBackupEnabled: Bool
     
@@ -38,23 +39,21 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             Form {
+                
                 // Recording Behavior Section
                 Section {
-                    // 簡素化: 録音方式関連設定を削除し、シンプルなUI説明のみ
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("録音方式")
-                                .font(.body)
-                            Text("録音ボタンをタップして開始/停止")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "record.circle.fill")
-                            .foregroundColor(.red)
-                    }
+                    SettingRow(
+                        title: "録音終了後の動作",
+                        value: recordingSettings.postRecordingBehavior.displayName,
+                        hasDisclosure: true,
+                        action: { showingPostRecordingBehaviorSelection = true }
+                    )
                 } header: {
                     Text("Recording Behavior")
+                } footer: {
+                    Text(recordingSettings.postRecordingBehavior.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
                 
                 // Appearance Section
@@ -148,6 +147,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showingLanguageSelection) {
                 LanguageSelectionSheet()
+            }
+            .sheet(isPresented: $showingPostRecordingBehaviorSelection) {
+                PostRecordingBehaviorSelectionSheet()
             }
             .onAppear {
                 // Viewが表示される際にWhisperServiceの状態を確認
@@ -704,6 +706,72 @@ struct GoogleDriveSettingRow: View {
                     }
                 } catch {
                     print("Sign in failed: \(error)")
+                }
+            }
+        }
+    }
+}
+
+struct PostRecordingBehaviorSelectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var recordingSettings = RecordingSettings.shared
+    @State private var selectedBehavior: PostRecordingBehavior
+    
+    init() {
+        _selectedBehavior = State(initialValue: RecordingSettings.shared.postRecordingBehavior)
+    }
+    
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(PostRecordingBehavior.allCases, id: \.self) { behavior in
+                    Button(action: {
+                        selectedBehavior = behavior
+                    }) {
+                        HStack {
+                            Image(systemName: behavior.iconName)
+                                .frame(width: 30)
+                                .foregroundColor(.blue)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(behavior.displayName)
+                                    .foregroundColor(.primary)
+                                    .font(.headline)
+                                
+                                Text(behavior.description)
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
+                                    .lineLimit(2)
+                            }
+                            
+                            Spacer()
+                            
+                            if selectedBehavior == behavior {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            .navigationTitle("録音終了後の動作")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("キャンセル") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完了") {
+                        recordingSettings.postRecordingBehavior = selectedBehavior
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(selectedBehavior == recordingSettings.postRecordingBehavior)
                 }
             }
         }

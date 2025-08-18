@@ -68,6 +68,40 @@ struct UnifiedAudioMeter: View {
                     .background(getMemoryColor().opacity(0.1))
                     .cornerRadius(6)
                 }
+                
+                // 音量品質インジケーター
+                if isRecording && audioService.isVolumeTooLow {
+                    HStack(spacing: 3) {
+                        Image(systemName: "speaker.wave.1.fill")
+                            .font(.caption2)
+                            .foregroundColor(getVolumeQualityColor())
+                        Text(getVolumeQualityText())
+                            .font(.caption2)
+                            .foregroundColor(getVolumeQualityColor())
+                            .fontWeight(.medium)
+                    }
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(getVolumeQualityColor().opacity(0.1))
+                    .cornerRadius(6)
+                }
+                
+                // ゲイン調整インジケーター
+                if isRecording && audioService.isGainAdjusting {
+                    HStack(spacing: 3) {
+                        Image(systemName: "dial.high.fill")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                        Text("調整中")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                            .fontWeight(.medium)
+                    }
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(6)
+                }
             }
             
             // 統一デザインの音声レベルバー
@@ -84,6 +118,42 @@ struct UnifiedAudioMeter: View {
                 }
             }
             .frame(height: containerHeight)
+            
+            // 音量品質警告バナー
+            if isRecording, let warning = audioService.recordingQualityWarning {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundColor(getVolumeQualityColor())
+                    
+                    Text(warning)
+                        .font(.caption2)
+                        .foregroundColor(getVolumeQualityColor())
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    
+                    Spacer()
+                    
+                    // 文字起こし成功確率表示
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("成功率")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text("\(Int(audioService.transcriptionSuccessProbability * 100))%")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(getVolumeQualityColor())
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(getVolumeQualityColor().opacity(0.1))
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(getVolumeQualityColor().opacity(0.3), lineWidth: 1)
+                )
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -224,6 +294,36 @@ struct UnifiedAudioMeter: View {
         }
     }
     
+    // MARK: - 音量品質インジケーター
+    
+    private func getVolumeQualityColor() -> Color {
+        switch audioService.volumeQuality {
+        case .critical, .veryPoor:
+            return .red
+        case .poor:
+            return .orange
+        case .fair:
+            return .yellow
+        default:
+            return .green
+        }
+    }
+    
+    private func getVolumeQualityText() -> String {
+        switch audioService.volumeQuality {
+        case .critical:
+            return "危険"
+        case .veryPoor:
+            return "低音"
+        case .poor:
+            return "音量"
+        case .fair:
+            return "注意"
+        default:
+            return "OK"
+        }
+    }
+    
     // MARK: - デバッグ機能
     
     private func startMockAudioLevelForTesting() {
@@ -241,6 +341,271 @@ struct UnifiedAudioMeter: View {
             let mockLevel = Float.random(in: 0.2...1.0) // 最低0.2で確実に表示
             audioService.setTestAudioLevel(mockLevel)
             print("🧪 Mock audio level set: \(String(format: "%.3f", mockLevel))")
+        }
+    }
+}
+
+// MARK: - Recording Guidance View
+struct RecordingGuidanceView: View {
+    @ObservedObject var audioService: AudioService
+    let isRecording: Bool
+    @State private var showingGuidanceTips = false
+    @State private var currentTipIndex = 0
+    @EnvironmentObject private var themeService: AppThemeService
+    
+    private let guidanceTips = [
+        GuidanceTip(
+            icon: "mic.fill", 
+            title: "マイクに近づく", 
+            description: "マイクから15-30cm程度の距離で話してください",
+            condition: .lowVolume
+        ),
+        GuidanceTip(
+            icon: "speaker.wave.2.fill", 
+            title: "周囲の騒音を減らす", 
+            description: "静かな環境で録音すると文字起こしの精度が向上します",
+            condition: .noisyEnvironment
+        ),
+        GuidanceTip(
+            icon: "timer", 
+            title: "はっきりと話す", 
+            description: "ゆっくりと明瞭に話すことで認識精度が向上します",
+            condition: .poorQuality
+        ),
+        GuidanceTip(
+            icon: "checkmark.circle.fill", 
+            title: "良好な音質です", 
+            description: "現在の音質で文字起こしが正常に行えます",
+            condition: .goodQuality
+        )
+    ]
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            // メインガイダンス表示
+            if let activeTip = getActiveTip() {
+                HStack(spacing: 12) {
+                    Image(systemName: activeTip.icon)
+                        .font(.title2)
+                        .foregroundColor(getTipColor(for: activeTip.condition))
+                        .frame(width: 30)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(activeTip.title)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Text(activeTip.description)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                    }
+                    
+                    Spacer()
+                    
+                    // 詳細表示ボタン
+                    Button(action: { showingGuidanceTips = true }) {
+                        Image(systemName: "questionmark.circle")
+                            .font(.title2)
+                            .foregroundColor(.blue)
+                    }
+                }
+                .padding()
+                .background(getTipColor(for: activeTip.condition).opacity(0.1))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(getTipColor(for: activeTip.condition).opacity(0.3), lineWidth: 1)
+                )
+            }
+            
+            // リアルタイム音量アドバイス
+            if isRecording && audioService.isVolumeTooLow {
+                VolumeAdjustmentGuide(audioService: audioService)
+            }
+        }
+        .sheet(isPresented: $showingGuidanceTips) {
+            GuidanceTipsSheet(tips: guidanceTips, currentIndex: $currentTipIndex)
+        }
+    }
+    
+    private func getActiveTip() -> GuidanceTip? {
+        if audioService.volumeQuality == .excellent || audioService.volumeQuality == .good {
+            return guidanceTips.first { $0.condition == .goodQuality }
+        } else if audioService.isVolumeTooLow {
+            return guidanceTips.first { $0.condition == .lowVolume }
+        } else if audioService.volumeQuality == .poor || audioService.volumeQuality == .veryPoor {
+            return guidanceTips.first { $0.condition == .poorQuality }
+        } else {
+            return guidanceTips.first { $0.condition == .noisyEnvironment }
+        }
+    }
+    
+    private func getTipColor(for condition: GuidanceTip.Condition) -> Color {
+        switch condition {
+        case .goodQuality:
+            return .green
+        case .lowVolume, .poorQuality:
+            return .orange
+        case .noisyEnvironment:
+            return .yellow
+        }
+    }
+}
+
+// MARK: - Volume Adjustment Guide
+struct VolumeAdjustmentGuide: View {
+    @ObservedObject var audioService: AudioService
+    @State private var showingAutoGainDialog = false
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Image(systemName: "dial.high.fill")
+                    .font(.title3)
+                    .foregroundColor(.blue)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("音量を自動調整しますか？")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    Text("現在の音量: \(getCurrentVolumeDescription())")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Button("調整") {
+                    triggerAutoGainAdjustment()
+                }
+                .buttonStyle(.borderedProminent)
+                .font(.caption)
+            }
+            
+            // ゲインレベル表示
+            if audioService.autoGainEnabled {
+                HStack {
+                    Text("ゲインレベル:")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    
+                    ProgressView(value: Double(audioService.currentGainLevel), total: 40.0)
+                        .tint(.blue)
+                        .scaleEffect(0.8)
+                    
+                    Text("\(Int(audioService.currentGainLevel))dB")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding()
+        .background(Color.blue.opacity(0.1))
+        .cornerRadius(10)
+    }
+    
+    private func getCurrentVolumeDescription() -> String {
+        switch audioService.volumeQuality {
+        case .critical:
+            return "極めて低い"
+        case .veryPoor:
+            return "とても低い"
+        case .poor:
+            return "低い"
+        case .fair:
+            return "やや低い"
+        default:
+            return "適正"
+        }
+    }
+    
+    private func triggerAutoGainAdjustment() {
+        print("🎛️ User triggered auto gain adjustment")
+        audioService.triggerManualGainAdjustment()
+    }
+}
+
+// MARK: - Guidance Models
+struct GuidanceTip {
+    let icon: String
+    let title: String
+    let description: String
+    let condition: Condition
+    
+    enum Condition {
+        case lowVolume
+        case noisyEnvironment
+        case poorQuality
+        case goodQuality
+    }
+}
+
+// MARK: - Guidance Tips Sheet
+struct GuidanceTipsSheet: View {
+    let tips: [GuidanceTip]
+    @Binding var currentIndex: Int
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                TabView(selection: $currentIndex) {
+                    ForEach(Array(tips.enumerated()), id: \.offset) { index, tip in
+                        VStack(spacing: 20) {
+                            Image(systemName: tip.icon)
+                                .font(.system(size: 60))
+                                .foregroundColor(.blue)
+                            
+                            Text(tip.title)
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .multilineTextAlignment(.center)
+                            
+                            Text(tip.description)
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                            
+                            Spacer()
+                        }
+                        .padding()
+                        .tag(index)
+                    }
+                }
+                .tabViewStyle(PageTabViewStyle())
+                .indexViewStyle(PageIndexViewStyle(backgroundDisplayMode: .always))
+                
+                HStack {
+                    Button("前へ") {
+                        if currentIndex > 0 {
+                            currentIndex -= 1
+                        }
+                    }
+                    .disabled(currentIndex == 0)
+                    
+                    Spacer()
+                    
+                    Button("次へ") {
+                        if currentIndex < tips.count - 1 {
+                            currentIndex += 1
+                        }
+                    }
+                    .disabled(currentIndex == tips.count - 1)
+                }
+                .padding()
+            }
+            .navigationTitle("録音ガイド")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完了") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
@@ -489,6 +854,12 @@ struct RecordingView: View {
                                 isManualStart: (viewModel.showManualRecordButton == false && recordingSettings.recordingStartMode == .manual)
                             )
                             
+                            // 録音ガイダンス表示
+                            RecordingGuidanceView(
+                                audioService: viewModel.audioService,
+                                isRecording: viewModel.isRecording
+                            )
+                            
                             // 緊急警告メッセージ
                             if viewModel.memoryPressureLevel == .critical {
                                 HStack(spacing: 8) {
@@ -545,6 +916,12 @@ struct RecordingView: View {
                                 showActiveAnimation: false
                             )
                             .frame(height: 80)
+                            
+                            // 待機時のガイダンス表示
+                            RecordingGuidanceView(
+                                audioService: viewModel.audioService,
+                                isRecording: false
+                            )
                             
                             Text("--:--")
                                 .font(.system(.largeTitle, design: .monospaced, weight: .light))
@@ -603,9 +980,27 @@ struct RecordingView: View {
                                 showActiveAnimation: false
                             )
                             .frame(height: 80)
+                            
+                            // 待機時のガイダンス表示
+                            RecordingGuidanceView(
+                                audioService: viewModel.audioService,
+                                isRecording: false
+                            )
                         }
                     }
                 }
+            }
+            
+            // 録音終了後の文字起こし進捗表示
+            if viewModel.showingPostRecordingProgress {
+                Color.black.opacity(0.6)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        // 背景タップで閉じる機能は無効化（誤操作防止）
+                    }
+                
+                PostRecordingProgressView(viewModel: viewModel)
+                    .transition(.opacity.combined(with: .scale))
             }
             
             // カウントダウン機能削除
@@ -650,6 +1045,25 @@ struct RecordingView: View {
         } message: {
             Text(viewModel.errorMessage ?? "不明なエラーが発生しました")
         }
+        .confirmationDialog("録音が完了しました", isPresented: $viewModel.showingPostRecordingActions) {
+            Button("リストを確認") {
+                viewModel.navigateToListFromActions()
+            }
+            
+            Button("ここで進捗確認") {
+                viewModel.stayOnRecordingFromActions()
+            }
+            
+            Button("続けて録音") {
+                viewModel.startNewRecording()
+            }
+            
+            Button("キャンセル", role: .cancel) {
+                viewModel.showingPostRecordingActions = false
+            }
+        } message: {
+            Text("次の行動を選択してください")
+        }
     }
     
     // MARK: - Actions
@@ -669,31 +1083,184 @@ struct RecordingView: View {
             viewModel.startManualRecording()
         }
     }
+}
+
+// MARK: - 録音終了後進捗表示コンポーネント
+
+struct PostRecordingProgressView: View {
+    @ObservedObject var viewModel: RecordingViewModel
+    @StateObject private var whisperService = WhisperKitTranscriptionService.shared
+    @State private var animatedProgress: Float = 0.0
     
-    // MARK: - Async Recording Methods with Realtime Transcription
+    var body: some View {
+        VStack(spacing: 24) {
+            // ヘッダー
+            VStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 48))
+                    .foregroundColor(.green)
+                
+                Text("録音完了")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                if let recording = viewModel.lastCompletedRecording {
+                    let formatter = DateComponentsFormatter()
+                    formatter.allowedUnits = [.minute, .second]
+                    formatter.zeroFormattingBehavior = .pad
+                    
+                    Text("録音時間: \(formatter.string(from: recording.duration) ?? "不明")")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            // 文字起こし進捗
+            VStack(spacing: 16) {
+                HStack {
+                    Image(systemName: "waveform.and.mic")
+                        .font(.title3)
+                        .foregroundColor(.blue)
+                    
+                    Text("文字起こし処理中...")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                }
+                
+                // プログレスバー
+                ProgressView(value: animatedProgress, total: 1.0)
+                    .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                    .frame(height: 8)
+                    .scaleEffect(1.0, anchor: .center)
+                
+                // ステータステキスト
+                HStack {
+                    if let recording = viewModel.lastCompletedRecording {
+                        Text(getStatusText(for: recording.transcriptionStatus))
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Text("\(Int(animatedProgress * 100))%")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.blue)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .background(Color(.systemGray6))
+            .cornerRadius(12)
+            
+            // アクションボタン
+            VStack(spacing: 12) {
+                HStack(spacing: 16) {
+                    Button("リストを見る") {
+                        viewModel.navigateToListFromActions()
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity)
+                    
+                    Button("続けて録音") {
+                        viewModel.startNewRecording()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .frame(maxWidth: .infinity)
+                }
+                
+                Button("このまま待つ") {
+                    // 何もしない（進捗表示を継続）
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.secondary)
+                .font(.subheadline)
+            }
+        }
+        .padding(24)
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
+        .shadow(radius: 20)
+        .padding(.horizontal, 32)
+        .onAppear {
+            startProgressAnimation()
+            monitorTranscriptionProgress()
+        }
+    }
     
-    private func handleRecordingTapAsync() async {
-        print("🎯 Async full-screen tap detected - isRecording: \(viewModel.isRecording)")
+    private func getStatusText(for status: TranscriptionStatus) -> String {
+        switch status {
+        case .none:
+            return "準備中..."
+        case .processing:
+            return "AI処理中..."
+        case .completed:
+            return "完了"
+        case .error:
+            return "エラーが発生しました"
+        }
+    }
+    
+    private func startProgressAnimation() {
+        withAnimation(.easeInOut(duration: 0.5)) {
+            animatedProgress = 0.1
+        }
         
-        if viewModel.isRecording {
-            await stopRecordingWithTranscription()
-        } else {
-            await startRecordingWithTranscription(manual: false)
+        // 擬似的な進捗アニメーション
+        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { timer in
+            guard let recording = viewModel.lastCompletedRecording else {
+                timer.invalidate()
+                return
+            }
+            
+            withAnimation(.easeInOut(duration: 0.3)) {
+                switch recording.transcriptionStatus {
+                case .none:
+                    animatedProgress = min(0.2, animatedProgress + 0.1)
+                case .processing:
+                    animatedProgress = min(0.8, animatedProgress + 0.15)
+                case .completed:
+                    animatedProgress = 1.0
+                    timer.invalidate()
+                    
+                    // 完了後2秒でプログレス表示を自動終了
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        if viewModel.showingPostRecordingProgress {
+                            viewModel.showingPostRecordingProgress = false
+                        }
+                    }
+                case .error:
+                    timer.invalidate()
+                }
+            }
         }
     }
     
-    private func startRecordingWithTranscription(manual: Bool) async {
-        if manual {
-            viewModel.startManualRecording()
-        } else {
-            // 録音開始（手動モードのみ）
-            viewModel.startManualRecording()
+    private func monitorTranscriptionProgress() {
+        // 実際の文字起こし進捗を監視
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+            guard let recording = viewModel.lastCompletedRecording else {
+                timer.invalidate()
+                return
+            }
+            
+            // TranscriptionServiceからのリアルタイム進捗更新
+            let realProgress = whisperService.transcriptionProgress
+            
+            if realProgress > animatedProgress {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    animatedProgress = realProgress
+                }
+            }
+            
+            if recording.transcriptionStatus == .completed || recording.transcriptionStatus == .error {
+                timer.invalidate()
+            }
         }
-    }
-    
-    private func stopRecordingWithTranscription() async {
-        // 録音停止
-        viewModel.stopRecording()
     }
 }
 

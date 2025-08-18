@@ -38,6 +38,47 @@ enum CountdownDuration: Int, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - PostRecordingBehavior
+
+enum PostRecordingBehavior: String, CaseIterable, Codable {
+    case stayOnRecording = "stayOnRecording"     // 録音画面に留まり進捗表示
+    case navigateToList = "navigateToList"       // 従来通りList遷移
+    case askUser = "askUser"                     // 毎回ユーザーに確認
+    
+    var displayName: String {
+        switch self {
+        case .stayOnRecording:
+            return "録音画面で進捗確認"
+        case .navigateToList:
+            return "リスト画面に移動"
+        case .askUser:
+            return "毎回確認する"
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .stayOnRecording:
+            return "録音終了後、同じ画面で文字起こし進捗を確認"
+        case .navigateToList:
+            return "録音終了後、すぐにリスト画面に移動"
+        case .askUser:
+            return "録音終了時に毎回行動を選択"
+        }
+    }
+    
+    var iconName: String {
+        switch self {
+        case .stayOnRecording:
+            return "waveform.and.mic"
+        case .navigateToList:
+            return "list.bullet"
+        case .askUser:
+            return "questionmark.circle"
+        }
+    }
+}
+
 /// 録音設定を管理するクラス
 class RecordingSettings: ObservableObject {
     static let shared = RecordingSettings()
@@ -67,6 +108,12 @@ class RecordingSettings: ObservableObject {
         }
     }
     
+    @Published var postRecordingBehavior: PostRecordingBehavior {
+        didSet {
+            UserDefaults.standard.set(postRecordingBehavior.rawValue, forKey: "postRecordingBehavior")
+        }
+    }
+    
     private init() {
         // 簡素化: 常に手動モードのみ
         self.recordingStartMode = .manual
@@ -76,7 +123,11 @@ class RecordingSettings: ObservableObject {
         self.autoTranscriptionEnabled = UserDefaults.standard.bool(forKey: "autoTranscriptionEnabled")
         self.autoBackupEnabled = UserDefaults.standard.bool(forKey: "autoBackupEnabled")
         
-        print("🔧 RecordingSettings initialized: mode=\(recordingStartMode.displayName)")
+        // 録音終了後の行動設定を復元（デフォルト: stayOnRecording）
+        let savedBehavior = UserDefaults.standard.string(forKey: "postRecordingBehavior") ?? PostRecordingBehavior.stayOnRecording.rawValue
+        self.postRecordingBehavior = PostRecordingBehavior(rawValue: savedBehavior) ?? .stayOnRecording
+        
+        print("🔧 RecordingSettings initialized: mode=\(recordingStartMode.displayName), postBehavior=\(postRecordingBehavior.displayName)")
     }
     
     /// 簡素化: 常に手動録音のみ
